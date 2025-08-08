@@ -12,28 +12,17 @@ import (
 	"github.com/sstent/garminsync/internal/garmin"
 )
 
+// Global flag variables for download command
+var downloadAll bool
+var downloadMissing bool
+var maxRetries int
+
 // downloadCmd represents the download command
 var downloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download missing FIT files",
 	Long:  `Downloads missing activity files from Garmin Connect`,
-}
-
-var downloadAll bool
-var downloadMissing bool
-var maxRetries int
-
-func init() {
-	downloadCmd.Flags().BoolVar(&downloadAll, "all", false, "Download all activities")
-	downloadCmd.Flags().BoolVar(&downloadMissing, "missing", false, "Download only missing activities")
-	downloadCmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum download retry attempts (default: 3)")
-	
-	downloadCmd.MarkFlagsMutuallyExclusive("all", "missing")
-	downloadCmd.MarkFlagsRequiredAtLeastOne("all", "missing")
-
-	rootCmd.AddCommand(downloadCmd)
-
-	downloadCmd.RunE = func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load configuration
 		cfg, err := config.LoadConfig()
 		if err != nil {
@@ -52,18 +41,18 @@ func init() {
 		}
 		
 		// Initialize database
-		db, err := db.NewDatabase(cfg.DatabasePath)
+		database, err := db.NewDatabase(cfg.DatabasePath)
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
-		defer db.Close()
+		defer database.Close()
 		
 		// Get activities to download
 		var activities []garmin.Activity
 		if downloadAll {
-			activities, err = db.GetAll()
+			activities, err = database.GetAll()
 		} else if downloadMissing {
-			activities, err = db.GetMissing()
+			activities, err = database.GetMissing()
 		}
 		if err != nil {
 			return fmt.Errorf("failed to get activities: %w", err)
@@ -97,7 +86,7 @@ func init() {
 				err := client.DownloadActivityFIT(activity.ActivityId, filename)
 				if err == nil {
 					// Mark as downloaded in database
-					if err := db.MarkDownloaded(activity.ActivityId, filename); err != nil {
+					if err := database.MarkDownloaded(activity.ActivityId, filename); err != nil {
 						fmt.Printf("⚠️ Failed to mark activity %d as downloaded: %v\n", activity.ActivityId, err)
 					} else {
 						successCount++
@@ -119,5 +108,17 @@ func init() {
 		
 		fmt.Printf("\n📊 Download summary: %d/%d activities successfully downloaded\n", successCount, total)
 		return nil
-	}
+	},
+}
+
+func init() {
+	// Bind flags to global variables
+	downloadCmd.Flags().BoolVar(&downloadAll, "all", false, "Download all activities")
+	downloadCmd.Flags().BoolVar(&downloadMissing, "missing", false, "Download only missing activities")
+	downloadCmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum download retry attempts (default: 3)")
+	
+	downloadCmd.MarkFlagsMutuallyExclusive("all", "missing")
+	downloadCmd.MarkFlagsRequiredAtLeastOne("all", "missing")
+
+	rootCmd.AddCommand(downloadCmd)
 }

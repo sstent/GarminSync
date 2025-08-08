@@ -9,11 +9,12 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	GarminEmail    string
-	GarminPassword string
-	DatabasePath   string
-	RateLimit      time.Duration
-	SessionPath    string
+	GarminEmail     string
+	GarminPassword  string
+	DatabasePath    string
+	RateLimit       time.Duration
+	SessionPath     string
+	SessionTimeout  time.Duration
 }
 
 // LoadConfig loads configuration from environment variables
@@ -30,6 +31,8 @@ func LoadConfig() (*Config, error) {
 	}
 
 	rateLimit := parseDuration(os.Getenv("RATE_LIMIT"), 2*time.Second)
+	sessionTimeout := parseDuration(os.Getenv("SESSION_TIMEOUT"), 30*time.Minute)
+	
 	sessionPath := os.Getenv("SESSION_PATH")
 	if sessionPath == "" {
 		sessionPath = "/data/session.json"
@@ -41,11 +44,12 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		GarminEmail:    email,
-		GarminPassword: password,
-		DatabasePath:   databasePath,
-		RateLimit:      rateLimit,
-		SessionPath:    sessionPath,
+		GarminEmail:     email,
+		GarminPassword:  password,
+		DatabasePath:    databasePath,
+		RateLimit:       rateLimit,
+		SessionPath:     sessionPath,
+		SessionTimeout:  sessionTimeout,
 	}, nil
 }
 
