@@ -56,40 +56,55 @@ class GarminSyncDaemon:
         try:
             self.log_operation("sync", "started")
             
+            # Import here to avoid circular imports
+            from .garmin import GarminClient
+            from .database import sync_database
+            
             # Perform sync and download
             client = GarminClient()
-            activities_before = self.count_missing()
             
-            # Sync database
-            session = get_session()
-            activities = client.get_activities(0, 1000)
-            for activity in activities:
-                activity_id = activity["activityId"]
-                existing = session.query(Activity).filter_by(activity_id=activity_id).first()
-                if not existing:
-                    new_activity = Activity(
-                        activity_id=activity_id,
-                        start_time=activity["startTimeLocal"],
-                        downloaded=False,
-                        created_at=datetime.now().isoformat()
-                    )
-                    session.add(new_activity)
-            session.commit()
+            # Sync database first
+            sync_database(client)
             
             # Download missing activities
             downloaded_count = 0
+            session = get_session()
             missing_activities = session.query(Activity).filter_by(downloaded=False).all()
+            
             for activity in missing_activities:
-                if client.download_activity(activity.activity_id, activity.start_time):
+                try:
+                    # Use the correct method name
+                    fit_data = client.download_activity_fit(activity.activity_id)
+                    
+                    # Save the file
+                    import os
+                    from pathlib import Path
+                    data_dir = Path(os.getenv("DATA_DIR", "data"))
+                    data_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    timestamp = activity.start_time.replace(":", "-").replace(" ", "_")
+                    filename = f"activity_{activity.activity_id}_{timestamp}.fit"
+                    filepath = data_dir / filename
+                    
+                    with open(filepath, "wb") as f:
+                        f.write(fit_data)
+                    
+                    activity.filename = str(filepath)
                     activity.downloaded = True
                     activity.last_sync = datetime.now().isoformat()
                     downloaded_count += 1
-            session.commit()
+                    session.commit()
+                    
+                except Exception as e:
+                    logger.error(f"Failed to download activity {activity.activity_id}: {e}")
+                    session.rollback()
             
+            session.close()
             self.log_operation("sync", "success", 
                 f"Downloaded {downloaded_count} new activities")
             
         except Exception as e:
+            logger.error(f"Sync failed: {e}")
             self.log_operation("sync", "error", str(e))
             
     def load_config(self):

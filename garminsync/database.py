@@ -12,6 +12,7 @@ class Activity(Base):
     start_time = Column(String, nullable=False)
     filename = Column(String, unique=True, nullable=True)
     downloaded = Column(Boolean, default=False, nullable=False)
+    created_at = Column(String, nullable=False)  # Add this line
     last_sync = Column(String, nullable=True)  # ISO timestamp of last sync
 
 class DaemonConfig(Base):
@@ -68,6 +69,7 @@ def sync_database(garmin_client):
                     activity_id=activity_id,
                     start_time=start_time,
                     downloaded=False,
+                    created_at=datetime.now().isoformat(),  # Add this line
                     last_sync=datetime.now().isoformat()
                 )
                 session.add(new_activity)

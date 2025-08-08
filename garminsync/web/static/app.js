@@ -45,3 +45,8 @@ async function triggerSync() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', updateStatus);
+
+async function toggleDaemon() {
+    // TODO: Implement daemon toggle functionality
+    alert('Daemon toggle functionality not yet implemented');
+}
