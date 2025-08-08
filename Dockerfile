@@ -1,24 +1,44 @@
-# Use official Python 3.10 slim image
-FROM python:3.10-slim
+# GarminSync Dockerfile - Pure Go Implementation
+FROM golang:1.22.0-alpine3.19 as builder
 
-# Set working directory
+# Create working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Set Go module permissions and install Git
+RUN mkdir -p /go/pkg/mod && \
+    chown -R 1000:1000 /go && \
+    chmod -R 777 /go/pkg/mod && \
+    apk add --no-cache git
 
-# Copy and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy entire project
+COPY . .
 
-# Copy application files
-COPY .env.example ./
-COPY main.py ./
+# Generate checksums and download dependencies
+RUN go mod tidy && go mod download
 
-# Set container permissions
-RUN chmod +x main.py
+# Build the Go application
+RUN CGO_ENABLED=0 go build -o /garminsync cmd/root.go
 
-# Command to run the application
-ENTRYPOINT ["python", "main.py"]
+# Final stage
+FROM alpine:3.19
+
+# Create non-root user (UID 1000:1000)
+RUN addgroup -S -g 1000 garminsync && \
+    adduser -S -u 1000 -G garminsync garminsync
+
+# Create data directory for FIT files and set permissions
+RUN mkdir -p /data && chown garminsync:garminsync /data
+
+# Copy the built Go binary from the builder stage
+COPY --from=builder /garminsync /garminsync
+
+# Set the working directory
+WORKDIR /data
+
+# Switch to non-root user
+USER garminsync
+
+# Set the entrypoint to the binary
+ENTRYPOINT ["/garminsync"]
+# Default command (can be overridden)
+CMD ["--help"]

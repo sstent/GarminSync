@@ -1,3 +1,0 @@
-garmin-connect-export==4.6.0
-python-dotenv==1.0.1
-garth>=0.5.0,<0.6.0
