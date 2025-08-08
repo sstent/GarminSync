@@ -19,13 +19,13 @@ class GarminSyncDaemon:
         """Start daemon with scheduler and web UI"""
         try:
             # Load configuration from database
-            config = self.load_config()
+            config_data = self.load_config()
             
             # Setup scheduled job
-            if config.enabled:
+            if config_data['enabled']:
                 self.scheduler.add_job(
                     func=self.sync_and_download,
-                    trigger=CronTrigger.from_crontab(config.schedule_cron),
+                    trigger=CronTrigger.from_crontab(config_data['schedule_cron']),
                     id='sync_job',
                     replace_existing=True
                 )
@@ -33,6 +33,9 @@ class GarminSyncDaemon:
             # Start scheduler
             self.scheduler.start()
             self.running = True
+            
+            # Update daemon status to running
+            self.update_daemon_status("running")
             
             # Start web UI in separate thread
             self.start_web_ui(web_port)
@@ -49,10 +52,12 @@ class GarminSyncDaemon:
                 
         except Exception as e:
             logger.error(f"Failed to start daemon: {str(e)}")
+            self.update_daemon_status("error")
             self.stop()
             
     def sync_and_download(self):
         """Scheduled job function"""
+        session = None
         try:
             self.log_operation("sync", "started")
             
@@ -99,36 +104,85 @@ class GarminSyncDaemon:
                     logger.error(f"Failed to download activity {activity.activity_id}: {e}")
                     session.rollback()
             
-            session.close()
             self.log_operation("sync", "success", 
                 f"Downloaded {downloaded_count} new activities")
+            
+            # Update last run time
+            self.update_daemon_last_run()
             
         except Exception as e:
             logger.error(f"Sync failed: {e}")
             self.log_operation("sync", "error", str(e))
+        finally:
+            if session:
+                session.close()
             
     def load_config(self):
-        """Load daemon configuration from database"""
+        """Load daemon configuration from database and return dict"""
         session = get_session()
-        config = session.query(DaemonConfig).first()
-        if not config:
-            # Create default configuration
-            config = DaemonConfig()
-            session.add(config)
+        try:
+            config = session.query(DaemonConfig).first()
+            if not config:
+                # Create default configuration
+                config = DaemonConfig()
+                session.add(config)
+                session.commit()
+                session.refresh(config)  # Ensure we have the latest data
+            
+            # Return configuration as dictionary to avoid session issues
+            return {
+                'id': config.id,
+                'enabled': config.enabled,
+                'schedule_cron': config.schedule_cron,
+                'last_run': config.last_run,
+                'next_run': config.next_run,
+                'status': config.status
+            }
+        finally:
+            session.close()
+        
+    def update_daemon_status(self, status):
+        """Update daemon status in database"""
+        session = get_session()
+        try:
+            config = session.query(DaemonConfig).first()
+            if not config:
+                config = DaemonConfig()
+                session.add(config)
+            
+            config.status = status
             session.commit()
-        return config
+        finally:
+            session.close()
+            
+    def update_daemon_last_run(self):
+        """Update daemon last run timestamp"""
+        session = get_session()
+        try:
+            config = session.query(DaemonConfig).first()
+            if config:
+                config.last_run = datetime.now().isoformat()
+                session.commit()
+        finally:
+            session.close()
         
     def start_web_ui(self, port):
         """Start FastAPI web server in a separate thread"""
-        from .web.app import app
-        import uvicorn
-        
-        def run_server():
-            uvicorn.run(app, host="0.0.0.0", port=port)
+        try:
+            from .web.app import app
+            import uvicorn
             
-        web_thread = threading.Thread(target=run_server, daemon=True)
-        web_thread.start()
-        self.web_server = web_thread
+            def run_server():
+                try:
+                    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+                except Exception as e:
+                    logger.error(f"Failed to start web server: {e}")
+                    
+            web_thread = threading.Thread(target=run_server, daemon=True)
+            web_thread.start()
+            self.web_server = web_thread
+        except ImportError as e:
+            logger.warning(f"Could not start web UI: {e}")
         
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -140,21 +194,33 @@ class GarminSyncDaemon:
         if self.scheduler.running:
             self.scheduler.shutdown()
         self.running = False
+        self.update_daemon_status("stopped")
+        self.log_operation("daemon", "stopped", "Daemon shutdown completed")
         logger.info("Daemon stopped")
         
     def log_operation(self, operation, status, message=None):
         """Log sync operation to database"""
         session = get_session()
-        log = SyncLog(
-            timestamp=datetime.now().isoformat(),
-            operation=operation,
-            status=status,
-            message=message
-        )
-        session.add(log)
-        session.commit()
+        try:
+            log = SyncLog(
+                timestamp=datetime.now().isoformat(),
+                operation=operation,
+                status=status,
+                message=message,
+                activities_processed=0,  # Can be updated later if needed
+                activities_downloaded=0  # Can be updated later if needed
+            )
+            session.add(log)
+            session.commit()
+        except Exception as e:
+            logger.error(f"Failed to log operation: {e}")
+        finally:
+            session.close()
         
     def count_missing(self):
         """Count missing activities"""
         session = get_session()
-        return session.query(Activity).filter_by(downloaded=False).count()
+        try:
+            return session.query(Activity).filter_by(downloaded=False).count()
+        finally:
+            session.close()
