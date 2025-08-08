@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>GarminSync Configuration</h1>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Daemon Settings</div>
+                <div class="card-body">
+                    <form id="daemon-config-form">
+                        <div class="form-group">
+                            <label for="daemon-enabled">Enable Daemon</label>
+                            <input type="checkbox" id="daemon-enabled" {% if config.enabled %}checked{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label for="cron-schedule">Synchronization Schedule</label>
+                            <input type="text" class="form-control" id="cron-schedule" 
+                                   value="{{ config.schedule_cron }}" 
+                                   placeholder="0 */6 * * *" 
+                                   title="Cron expression (every 6 hours by default)">
+                            <small class="form-text text-muted">
+                                Cron format: minute hour day(month) month day(week)
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Daemon Status</div>
+                <div class="card-body">
+                    <p>Current Status: <span id="daemon-status-text">{{ config.status|capitalize }}</span></p>
+                    <p>Last Run: <span id="daemon-last-run">{{ config.last_run or 'Never' }}</span></p>
+                    <p>Next Run: <span id="daemon-next-run">{{ config.next_run or 'Not scheduled' }}</span></p>
+                    
+                    <div class="mt-3">
+                        <button id="start-daemon-btn" class="btn btn-success mr-2">
+                            Start Daemon
+                        </button>
+                        <button id="stop-daemon-btn" class="btn btn-danger">
+                            Stop Daemon
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form submission handler
+    document.getElementById('daemon-config-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const enabled = document.getElementById('daemon-enabled').checked;
+        const cronSchedule = document.getElementById('cron-schedule').value;
+        
+        try {
+            const response = await fetch('/api/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    enabled: enabled,
+                    cron_schedule: cronSchedule
+                })
+            });
+            
+            if (response.ok) {
+                alert('Configuration saved successfully');
+                updateStatus();
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail}`);
+            }
+        } catch (error) {
+            alert('Failed to save configuration: ' + error.message);
+        }
+    });
+    
+    // Daemon control buttons
+    document.getElementById('start-daemon-btn').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/api/daemon/start', { method: 'POST' });
+            if (response.ok) {
+                alert('Daemon started successfully');
+                updateStatus();
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail}`);
+            }
+        } catch (error) {
+            alert('Failed to start daemon: ' + error.message);
+        }
+    });
+    
+    document.getElementById('stop-daemon-btn').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/api/daemon/stop', { method: 'POST' });
+            if (response.ok) {
+                alert('Daemon stopped successfully');
+                updateStatus();
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail}`);
+            }
+        } catch (error) {
+            alert('Failed to stop daemon: ' + error.message);
+        }
+    });
+    
+    // Initial status update
+    updateStatus();
+    
+    async function updateStatus() {
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            // Update status display
+            document.getElementById('daemon-status-text').textContent = 
+                data.daemon.running ? 'Running' : 'Stopped';
+            document.getElementById('daemon-last-run').textContent = 
+                data.daemon.last_run || 'Never';
+            document.getElementById('daemon-next-run').textContent = 
+                data.daemon.next_run || 'Not scheduled';
+            
+        } catch (error) {
+            console.error('Failed to update status:', error);
+        }
+    }
+});
+</script>
+{% endblock %}
