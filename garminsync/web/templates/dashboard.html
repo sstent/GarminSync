@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>GarminSync Dashboard</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Statistics</div>
+                <div class="card-body">
+                    <p>Total Activities: {{ stats.total }}</p>
+                    <p>Downloaded: {{ stats.downloaded }}</p>
+                    <p>Missing: {{ stats.missing }}</p>
+                    <p>Last Sync: {{ stats.last_sync }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Daemon Status</div>
+                <div class="card-body" id="daemon-status">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Quick Actions</div>
+                <div class="card-body">
+                    <button class="btn btn-primary" onclick="triggerSync()">
+                        Sync Now
+                    </button>
+                    <button class="btn btn-secondary" onclick="toggleDaemon()">
+                        Toggle Daemon
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Recent Activity</div>
+                <div class="card-body" id="recent-logs">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Schedule Configuration</div>
+                <div class="card-body">
+                    <form id="schedule-form">
+                        <div class="form-group">
+                            <label for="schedule-enabled">Enable Scheduled Sync</label>
+                            <input type="checkbox" id="schedule-enabled">
+                        </div>
+                        <div class="form-group">
+                            <label for="cron-schedule">Cron Schedule</label>
+                            <input type="text" class="form-control" id="cron-schedule" 
+                                placeholder="0 */6 * * *" title="Every 6 hours">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            Update Schedule
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

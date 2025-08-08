@@ -28,5 +28,9 @@ RUN mkdir -p /app/data
 ENV ENV_FILE=/app/.env
 ENV DATA_DIR=/app/data
 
-# Set the entrypoint to run the CLI
+# Expose web UI port
+EXPOSE 8080
+
+# Update entrypoint to support daemon mode
 ENTRYPOINT ["python", "-m", "garminsync.cli"]
+CMD ["--help"]

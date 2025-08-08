@@ -12,11 +12,12 @@ app = typer.Typer(help="GarminSync - Download Garmin Connect activities", rich_m
 def list_activities(
     all_activities: Annotated[bool, typer.Option("--all", help="List all activities")] = False,
     missing: Annotated[bool, typer.Option("--missing", help="List missing activities")] = False,
-    downloaded: Annotated[bool, typer.Option("--downloaded", help="List downloaded activities")] = False
+    downloaded: Annotated[bool, typer.Option("--downloaded", help="List downloaded activities")] = False,
+    offline: Annotated[bool, typer.Option("--offline", help="Work offline without syncing")] = False
 ):
     """List activities based on specified filters"""
     from tqdm import tqdm
-    from .database import get_session, Activity
+    from .database import get_session, Activity, get_offline_stats, sync_database
     from .garmin import GarminClient
     
     # Validate input
@@ -28,10 +29,14 @@ def list_activities(
         client = GarminClient()
         session = get_session()
         
-        # Sync database with latest activities
-        typer.echo("Syncing activities from Garmin Connect...")
-        from .database import sync_database
-        sync_database(client)
+        if not offline:
+            # Sync database with latest activities
+            typer.echo("Syncing activities from Garmin Connect...")
+            sync_database(client)
+        else:
+            # Show offline status with last sync info
+            stats = get_offline_stats()
+            typer.echo(f"Working in offline mode - using cached data (last sync: {stats['last_sync']})")
         
         # Build query based on filters
         query = session.query(Activity)
@@ -129,6 +134,30 @@ def download(
     finally:
         if 'session' in locals():
             session.close()
+
+@app.command("daemon")
+def daemon_mode(
+    start: Annotated[bool, typer.Option("--start", help="Start daemon")] = False,
+    stop: Annotated[bool, typer.Option("--stop", help="Stop daemon")] = False,
+    status: Annotated[bool, typer.Option("--status", help="Show daemon status")] = False,
+    port: Annotated[int, typer.Option("--port", help="Web UI port")] = 8080
+):
+    """Daemon mode operations"""
+    from .daemon import GarminSyncDaemon
+    
+    if start:
+        daemon = GarminSyncDaemon()
+        daemon.start(web_port=port)
+    elif stop:
+        # Implementation for stopping daemon (PID file or signal)
+        typer.echo("Stopping daemon...")
+        # TODO: Implement stop (we can use a PID file to stop the daemon)
+        typer.echo("Daemon stop not implemented yet")
+    elif status:
+        # Show current daemon status
+        typer.echo("Daemon status not implemented yet")
+    else:
+        typer.echo("Please specify one of: --start, --stop, --status")
 
 def main():
     app()
