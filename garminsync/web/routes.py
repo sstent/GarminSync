@@ -148,6 +148,55 @@ async def get_logs(limit: int = 50):
     finally:
         session.close()
 
+@router.post("/daemon/start")
+async def start_daemon():
+    """Start the daemon process"""
+    from garminsync.daemon import daemon_instance
+    try:
+        # Start the daemon in a separate thread to avoid blocking
+        import threading
+        daemon_thread = threading.Thread(target=daemon_instance.start)
+        daemon_thread.daemon = True
+        daemon_thread.start()
+        
+        # Update daemon status in database
+        session = get_session()
+        config = session.query(DaemonConfig).first()
+        if not config:
+            config = DaemonConfig()
+            session.add(config)
+        config.status = "running"
+        session.commit()
+        
+        return {"message": "Daemon started successfully"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to start daemon: {str(e)}")
+    finally:
+        session.close()
+
+@router.post("/daemon/stop")
+async def stop_daemon():
+    """Stop the daemon process"""
+    from garminsync.daemon import daemon_instance
+    try:
+        # Stop the daemon
+        daemon_instance.stop()
+        
+        # Update daemon status in database
+        session = get_session()
+        config = session.query(DaemonConfig).first()
+        if config:
+            config.status = "stopped"
+            session.commit()
+        
+        return {"message": "Daemon stopped successfully"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to stop daemon: {str(e)}")
+    finally:
+        session.close()
+
 @router.delete("/logs")
 async def clear_logs():
     """Clear all sync logs"""
