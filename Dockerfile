@@ -15,13 +15,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY garminsync/ ./garminsync/
+
+# Create data directory
+RUN mkdir -p /app/data
 
 # Set environment variables from .env file
 ENV ENV_FILE=/app/.env
+ENV DATA_DIR=/app/data
 
 # Set the entrypoint to run the CLI
 ENTRYPOINT ["python", "-m", "garminsync.cli"]
