@@ -37,17 +37,16 @@ Activity:
 ## File Structure
 ```
 /garminsync
-├── cmd/
-│   └── root.go (CLI entrypoint)
-│   └── list.go (activity listing commands)
-│   └── download.go (download command)
+├── main.go (CLI entrypoint and command implementations)
 ├── internal/
+│   ├── config/
+│   │   └── config.go (configuration loading)
 │   ├── garmin/
 │   │   ├── client.go (API integration)
 │   │   └── activity.go (activity models)
 │   └── db/
 │       ├── database.go (embedded schema)
-│       ├── sync.go (NEW: database synchronization)
+│       ├── sync.go (database synchronization)
 │       └── migrations.go (versioned migrations)
 ├── Dockerfile
 ├── .env
@@ -60,6 +59,8 @@ Activity:
 - **File naming:** `activity_{id}_{timestamp}.fit` (e.g., activity_123456_20240807.fit)
 - **Rate limiting:** 2-second delays between API requests
 - **Database:** Embedded schema creation in Go code with versioned migrations
+- **Database Sync:** Before any list/download operation, the application performs a synchronization between Garmin Connect and the local SQLite database to ensure activity records are up-to-date.
+- **CLI Structure:** All CLI commands and flags are implemented in main.go using Cobra, without separate command files
 - **Docker:** 
     - All commands require sudo as specified
     - Fully containerized build process (no host Go dependencies)
@@ -88,9 +89,9 @@ Activity:
 
 ### Phase 4: Polish
 - [x] Progress indicators (download command)
-- [ ] Error handling (robust error recovery)
+- [~] Error handling (partial implementation - retry logic exists but needs expansion)
 - [ ] README documentation
-- [x] Session timeout handling
+- [x] Session timeout handling (via garminexport)
 
 ## Critical Roadblocks
 1. **Rate limiting:** Built-in 2-second request delays (implemented)
@@ -107,8 +108,7 @@ Activity:
 3. Complete README documentation  
 4. Final testing and validation  
 
-**Known issues:** 
-- Command flag parsing issue: The `--all` flag is not being recognized by the CLI. This appears to be related to how Cobra handles flags for subcommands. The root cause is being investigated.
+**Known issues:** None
 
 ## Recent Fixes
 - Fixed package declaration conflicts in cmd/ directory (changed from `package cmd` to `package main`)

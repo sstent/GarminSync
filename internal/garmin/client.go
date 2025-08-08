@@ -23,22 +23,12 @@ const (
 // NewClient creates a new Garmin Connect client
 func NewClient(cfg *config.Config) (*Client, error) {
 	// Create client with session persistence
-	client := garminconnect.New(garminconnect.WithCredentials(cfg.GarminEmail, cfg.GarminPassword))
+	client := garminconnect.NewClient(garminconnect.Credentials(cfg.GarminEmail, cfg.GarminPassword))
 	client.SessionFile = cfg.SessionPath
 
 	// Attempt to load existing session
-	if err := client.Login(); err != nil {
-		// If session is invalid, try re-authenticating with retry
-		maxAttempts := 2
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			if err := client.Authenticate(); err != nil {
-				if attempt == maxAttempts {
-					return nil, fmt.Errorf("authentication failed after %d attempts: %w", maxAttempts, err)
-				}
-				continue
-			}
-			break
-		}
+	if err := client.Authenticate(); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
 	return &Client{
@@ -71,7 +61,7 @@ func (c *Client) GetActivities() ([]Activity, error) {
 		return nil, err
 	}
 	// Get activities from Garmin Connect
-	garminActivities, err := c.client.GetActivities(0, 100) // Pagination: start=0, limit=100
+	garminActivities, err := c.client.Activities("", 0, 100) // Empty string = current user
 	if err != nil {
 		return nil, fmt.Errorf("failed to get activities: %w", err)
 	}
@@ -80,9 +70,9 @@ func (c *Client) GetActivities() ([]Activity, error) {
 	var activities []Activity
 	for _, ga := range garminActivities {
 		activities = append(activities, Activity{
-			ActivityId: int(ga.ActivityID),
-			StartTime:  time.Time(ga.StartTime),
-			Filename:   fmt.Sprintf("activity_%d_%s.fit", ga.ActivityID, ga.StartTime.Format("20060102")),
+			ActivityId: int(ga.ID),
+			StartTime:  time.Time(ga.StartLocal),
+			Filename:   fmt.Sprintf("activity_%d_%s.fit", ga.ID, ga.StartLocal.Time().Format("20060102")),
 			Downloaded: false,
 		})
 	}
@@ -100,15 +90,16 @@ func (c *Client) DownloadActivityFIT(activityId int, filename string) error {
 	// Apply rate limiting
 	time.Sleep(c.cfg.RateLimit)
 
-	// Download FIT file
-	fitData, err := c.client.DownloadActivity(activityId, garminconnect.FormatFIT)
+	// Create file for writing
+	file, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("failed to download activity %d: %w", activityId, err)
+		return fmt.Errorf("failed to create file: %w", err)
 	}
+	defer file.Close()
 
-	// Save to file
-	if err := os.WriteFile(filename, fitData, 0644); err != nil {
-		return fmt.Errorf("failed to save FIT file %s: %w", filename, err)
+	// Download FIT file
+	if err := c.client.ExportActivity(activityId, file, garminconnect.ActivityFormatFIT); err != nil {
+		return fmt.Errorf("failed to export activity %d: %w", activityId, err)
 	}
 
 	return nil

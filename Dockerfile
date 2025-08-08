@@ -1,5 +1,5 @@
 # GarminSync Dockerfile - Pure Go Implementation
-FROM golang:1.22.0-alpine3.19 as builder
+FROM golang:1.22.0-alpine3.19 AS builder
 
 # Create working directory
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN go mod tidy && go mod download
 
 # Build the Go application
-RUN CGO_ENABLED=0 go build -o /garminsync cmd/root.go
+RUN CGO_ENABLED=0 go build -o /garminsync main.go
 
 # Final stage
 FROM alpine:3.19
