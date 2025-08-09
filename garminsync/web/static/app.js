@@ -6,11 +6,17 @@ async function updateStatus() {
         const response = await fetch('/api/status');
         const data = await response.json();
         
+        // Update sync status
+        const syncStatus = document.getElementById('sync-status');
+        const statusBadge = data.daemon.running ? 
+            '<span class="badge badge-success">Running</span>' : 
+            '<span class="badge badge-danger">Stopped</span>';
+        
+        syncStatus.innerHTML = `${statusBadge}`;
+        
         // Update daemon status
         document.getElementById('daemon-status').innerHTML = `
-            <p>Status: <span class="badge ${data.daemon.running ? 'badge-success' : 'badge-danger'}">
-                ${data.daemon.running ? 'Running' : 'Stopped'}
-            </span></p>
+            <p>Status: ${statusBadge}</p>
             <p>Last Run: ${data.daemon.last_run || 'Never'}</p>
             <p>Next Run: ${data.daemon.next_run || 'Not scheduled'}</p>
             <p>Schedule: ${data.daemon.schedule || 'Not configured'}</p>

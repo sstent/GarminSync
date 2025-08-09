@@ -23,12 +23,30 @@ class GarminSyncDaemon:
             
             # Setup scheduled job
             if config_data['enabled']:
-                self.scheduler.add_job(
-                    func=self.sync_and_download,
-                    trigger=CronTrigger.from_crontab(config_data['schedule_cron']),
-                    id='sync_job',
-                    replace_existing=True
-                )
+                cron_str = config_data['schedule_cron']
+                try:
+                    # Validate cron string
+                    if not cron_str or len(cron_str.strip().split()) != 5:
+                        logger.error(f"Invalid cron schedule: '{cron_str}'. Using default '0 */6 * * *'")
+                        cron_str = "0 */6 * * *"
+                    
+                    self.scheduler.add_job(
+                        func=self.sync_and_download,
+                        trigger=CronTrigger.from_crontab(cron_str),
+                        id='sync_job',
+                        replace_existing=True
+                    )
+                    logger.info(f"Scheduled job created with cron: '{cron_str}'")
+                except Exception as e:
+                    logger.error(f"Failed to create scheduled job: {str(e)}")
+                    # Fallback to default schedule
+                    self.scheduler.add_job(
+                        func=self.sync_and_download,
+                        trigger=CronTrigger.from_crontab("0 */6 * * *"),
+                        id='sync_job',
+                        replace_existing=True
+                    )
+                    logger.info("Using default schedule '0 */6 * * *'")
             
             # Start scheduler
             self.scheduler.start()
@@ -123,8 +141,12 @@ class GarminSyncDaemon:
         try:
             config = session.query(DaemonConfig).first()
             if not config:
-                # Create default configuration
-                config = DaemonConfig()
+                # Create default configuration with explicit cron schedule
+                config = DaemonConfig(
+                    schedule_cron="0 */6 * * *",
+                    enabled=True,
+                    status="stopped"
+                )
                 session.add(config)
                 session.commit()
                 session.refresh(config)  # Ensure we have the latest data

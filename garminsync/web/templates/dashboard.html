@@ -5,7 +5,40 @@
     <h1>GarminSync Dashboard</h1>
     
     <div class="row">
+        <!-- Real-time Activity Counter -->
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h4 id="sync-status">Idle</h4>
+                    <p>Current Operation</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activity Progress Chart -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">Activity Progress</div>
+                <div class="card-body">
+                    <canvas id="activityChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Daemon Status -->
         <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Daemon Status</div>
+                <div class="card-body" id="daemon-status">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <!-- Statistics Card -->
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-header">Statistics</div>
                 <div class="card-body">
@@ -17,16 +50,8 @@
             </div>
         </div>
         
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">Daemon Status</div>
-                <div class="card-body" id="daemon-status">
-                    <!-- Populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
+        <!-- Quick Actions Card -->
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-header">Quick Actions</div>
                 <div class="card-body">
@@ -76,4 +101,8 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/charts.js"></script>
 {% endblock %}

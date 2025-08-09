@@ -126,11 +126,35 @@ async def get_activity_stats():
     return get_offline_stats()
 
 @router.get("/logs")
-async def get_logs(limit: int = 50):
-    """Get recent sync logs"""
+async def get_logs(
+    status: str = None,
+    operation: str = None,
+    date: str = None,
+    page: int = 1,
+    per_page: int = 20
+):
+    """Get sync logs with filtering and pagination"""
     session = get_session()
     try:
-        logs = session.query(SyncLog).order_by(SyncLog.timestamp.desc()).limit(limit).all()
+        query = session.query(SyncLog)
+        
+        # Apply filters
+        if status:
+            query = query.filter(SyncLog.status == status)
+        if operation:
+            query = query.filter(SyncLog.operation == operation)
+        if date:
+            # Filter by date (assuming ISO format)
+            query = query.filter(SyncLog.timestamp.like(f"{date}%"))
+        
+        # Get total count for pagination
+        total = query.count()
+        
+        # Apply pagination
+        logs = query.order_by(SyncLog.timestamp.desc()) \
+                   .offset((page - 1) * per_page) \
+                   .limit(per_page) \
+                   .all()
         
         log_data = []
         for log in logs:
@@ -144,7 +168,12 @@ async def get_logs(limit: int = 50):
                 "activities_downloaded": log.activities_downloaded
             })
         
-        return {"logs": log_data}
+        return {
+            "logs": log_data,
+            "total": total,
+            "page": page,
+            "per_page": per_page
+        }
     finally:
         session.close()
 

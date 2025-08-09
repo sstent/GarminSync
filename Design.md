@@ -9,13 +9,13 @@
 
 ## **Core Features**
 
-### **CLI Mode (Current)**
+### **CLI Mode (Implemented)**
 1. List all activities (`garminsync list --all`)
 2. List activities that have not been downloaded (`garminsync list --missing`)
 3. List activities that have been downloaded (`garminsync list --downloaded`)
 4. Download all missing activities (`garminsync download --missing`)
 
-### **Enhanced Features (New)**
+### **Enhanced Features (Implemented)**
 5. **Offline Mode**: List activities without polling Garmin Connect (`garminsync list --missing --offline`)
 6. **Daemon Mode**: Run as background service with scheduled downloads (`garminsync daemon --start`)
 7. **Web UI**: Browser-based interface for daemon monitoring and configuration (`http://localhost:8080`)
@@ -24,7 +24,7 @@
 
 ## **Tech Stack 🐍**
 
-* **Frontend:** CLI (**Python**)
+* **Frontend:** CLI (**Python** with Typer) + Web UI (FastAPI + Jinja2)
 * **Backend:** **Python**
 * **Database:** SQLite (`garmin.db`)
 * **Hosting:** Docker container
@@ -85,23 +85,23 @@ class SyncLog(Base):
 
 ## **User Flow**
 
-### **CLI Mode (Existing)**
+### **CLI Mode (Implemented)**
 1. User sets up credentials in `.env` file with `GARMIN_EMAIL` and `GARMIN_PASSWORD`
 2. User launches the container: `docker run -it --env-file .env -v $(pwd)/data:/app/data garminsync`
 3. User runs commands like `garminsync download --missing`
 4. Application syncs with Garmin Connect, shows progress bars, and downloads activities
 
-### **Offline Mode (New)**
+### **Offline Mode (Implemented)**
 1. User runs `garminsync list --missing --offline` to view cached data without API calls
 2. Application queries local database only, showing last known state
 3. Useful for checking status without network connectivity or API rate limits
 
-### **Daemon Mode (New)**
-1. User starts daemon: `garminsync daemon --start`
-2. Daemon runs in background, scheduling automatic sync/download operations
+### **Daemon Mode (Implemented)**
+1. User starts daemon: `garminsync daemon` (runs continuously in foreground)
+2. Daemon automatically starts web UI and background scheduler
 3. User accesses web UI at `http://localhost:8080` for monitoring and configuration
 4. Web UI provides real-time status, logs, and schedule management
-5. Daemon can be stopped with `garminsync daemon --stop` or through web UI
+5. Daemon can be stopped with `Ctrl+C` or through web UI stop functionality
 
 -----
 
@@ -116,24 +116,25 @@ class SyncLog(Base):
 │   ├── database.py        # SQLAlchemy models and database operations
 │   ├── garmin.py          # Garmin Connect client wrapper with robust download logic
 │   ├── daemon.py          # Daemon mode implementation with APScheduler
-│   ├── web/               # Web UI components
-│   │   ├── __init__.py
-│   │   ├── app.py         # FastAPI application setup
-│   │   ├── routes.py      # API endpoints for web UI
-│   │   ├── static/        # CSS, JavaScript, images
-│   │   │   ├── style.css
-│   │   │   └── app.js
-│   │   └── templates/     # Jinja2 HTML templates
-│   │       ├── base.html
-│   │       ├── dashboard.html
-│   │       └── config.html
-│   └── utils.py           # Shared utilities and helpers
+│   ├── utils.py           # Shared utilities and helpers
+│   └── web/               # Web UI components
+│       ├── __init__.py
+│       ├── app.py         # FastAPI application setup
+│       ├── routes.py      # API endpoints for web UI
+│       ├── static/        # CSS, JavaScript, images
+│       │   ├── style.css
+│       │   └── app.js
+│       └── templates/     # Jinja2 HTML templates
+│           ├── base.html
+│           ├── dashboard.html
+│           └── config.html
 ├── data/                    # Directory for downloaded .fit files and SQLite DB
 ├── .env                     # Stores GARMIN_EMAIL/GARMIN_PASSWORD (gitignored)
-├── .gitignore              # Excludes .env file
+├── .gitignore              # Excludes .env file and data directory
 ├── Dockerfile              # Production-ready container configuration
 ├── Design.md               # This design document
-└── requirements.txt        # Pinned Python dependencies (updated)
+├── plan.md                 # Implementation notes and fixes
+└── requirements.txt        # Python dependencies with compatibility fixes
 ```
 
 -----
@@ -202,432 +203,38 @@ class SyncLog(Base):
 - [x] **Database Updates**: Proper status tracking and file path storage
 - [x] **File Management**: Safe filename generation and directory creation
 
-#### **Phase 4: Polish**
-- [x] **Progress Bars**: Comprehensive tqdm implementation across all operations
-- [x] **Error Handling**: Graceful error handling with informative messages
-- [x] **Container Optimization**: Efficient Docker build with proper dependency management
+#### **Phase 4: Enhanced Features**
+- [x] **Offline Mode**: List activities without API calls using cached data
+- [x] **Daemon Mode**: Background service with APScheduler for automatic sync
+- [x] **Web UI**: FastAPI-based dashboard with real-time monitoring
+- [x] **Schedule Configuration**: Configurable cron-based sync schedules
+- [x] **Activity Logs**: Comprehensive logging of sync operations
 
-### **🚧 New Features Implementation Guide**
+#### **Phase 5: Web Interface**
+- [x] **Dashboard**: Real-time statistics and daemon status monitoring
+- [x] **API Routes**: RESTful endpoints for configuration and control
+- [x] **Templates**: Responsive HTML templates with Bootstrap styling
+- [x] **JavaScript Integration**: Auto-refreshing status and interactive controls
+- [x] **Configuration Management**: Web-based daemon settings and schedule updates
 
-#### **Feature 1: Offline Mode**
+### **🔧 Recent Fixes and Improvements**
 
-**Implementation Steps:**
-1. **CLI Enhancement** (`cli.py`):
-   ```python
-   @app.command("list")
-   def list_activities(
-       all_activities: bool = False,
-       missing: bool = False,
-       downloaded: bool = False,
-       offline: Annotated[bool, typer.Option("--offline", help="Work offline without syncing")] = False
-   ):
-       if not offline:
-           # Existing sync logic
-           sync_database(client)
-       else:
-           typer.echo("Working in offline mode - using cached data")
-       
-       # Rest of listing logic remains the same
-   ```
+#### **Dependency Management**
+- [x] **Pydantic Compatibility**: Fixed version constraints to avoid conflicts with `garth`
+- [x] **Requirements Lock**: Updated to `pydantic>=2.0.0,<2.5.0` for stability
+- [x] **Package Versions**: Verified compatibility across all dependencies
 
-2. **Database Enhancements** (`database.py`):
-   - Add `last_sync` column to Activity table
-   - Add utility functions for offline status checking
-   ```python
-   def get_offline_stats():
-       """Return statistics about cached data without API calls"""
-       session = get_session()
-       total = session.query(Activity).count()
-       downloaded = session.query(Activity).filter_by(downloaded=True).count()
-       missing = total - downloaded
-       last_sync = session.query(Activity).order_by(Activity.last_sync.desc()).first()
-       return {
-           'total': total,
-           'downloaded': downloaded, 
-           'missing': missing,
-           'last_sync': last_sync.last_sync if last_sync else 'Never'
-       }
-   ```
+#### **Code Quality Fixes**
+- [x] **Missing Fields**: Added `created_at` field to Activity model and sync operations
+- [x] **Import Issues**: Resolved circular import problems in daemon module
+- [x] **Error Handling**: Improved exception handling and logging throughout
+- [x] **Method Names**: Corrected method calls and parameter names
 
-#### **Feature 2: Daemon Mode**
-
-**Implementation Steps:**
-1. **New Daemon Module** (`daemon.py`):
-   ```python
-   from apscheduler.schedulers.background import BackgroundScheduler
-   from apscheduler.triggers.cron import CronTrigger
-   import signal
-   import sys
-   import time
-   import threading
-   from datetime import datetime
-   
-   class GarminSyncDaemon:
-       def __init__(self):
-           self.scheduler = BackgroundScheduler()
-           self.running = False
-           self.web_server = None
-           
-       def start(self, web_port=8080):
-           """Start daemon with scheduler and web UI"""
-           # Load configuration from database
-           config = self.load_config()
-           
-           # Setup scheduled job
-           if config.enabled:
-               self.scheduler.add_job(
-                   func=self.sync_and_download,
-                   trigger=CronTrigger.from_crontab(config.schedule_cron),
-                   id='sync_job',
-                   replace_existing=True
-               )
-           
-           # Start scheduler
-           self.scheduler.start()
-           self.running = True
-           
-           # Start web UI in separate thread
-           self.start_web_ui(web_port)
-           
-           # Setup signal handlers for graceful shutdown
-           signal.signal(signal.SIGINT, self.signal_handler)
-           signal.signal(signal.SIGTERM, self.signal_handler)
-           
-           print(f"Daemon started. Web UI available at http://localhost:{web_port}")
-           
-           # Keep daemon running
-           try:
-               while self.running:
-                   time.sleep(1)
-           except KeyboardInterrupt:
-               self.stop()
-               
-       def sync_and_download(self):
-           """Scheduled job function"""
-           try:
-               self.log_operation("sync", "started")
-               
-               # Perform sync and download
-               from .garmin import GarminClient
-               from .database import sync_database
-               
-               client = GarminClient()
-               activities_before = self.count_missing()
-               
-               sync_database(client)
-               
-               # Download missing activities
-               downloaded_count = self.download_missing_activities(client)
-               
-               self.log_operation("sync", "success", 
-                   f"Downloaded {downloaded_count} new activities")
-               
-           except Exception as e:
-               self.log_operation("sync", "error", str(e))
-               
-       def load_config(self):
-           """Load daemon configuration from database"""
-           session = get_session()
-           config = session.query(DaemonConfig).first()
-           if not config:
-               # Create default configuration
-               config = DaemonConfig()
-               session.add(config)
-               session.commit()
-           session.close()
-           return config
-   ```
-
-2. **CLI Integration** (`cli.py`):
-   ```python
-   @app.command("daemon")
-   def daemon_mode(
-       start: Annotated[bool, typer.Option("--start", help="Start daemon")] = False,
-       stop: Annotated[bool, typer.Option("--stop", help="Stop daemon")] = False,
-       status: Annotated[bool, typer.Option("--status", help="Show daemon status")] = False,
-       port: Annotated[int, typer.Option("--port", help="Web UI port")] = 8080
-   ):
-       """Daemon mode operations"""
-       from .daemon import GarminSyncDaemon
-       
-       if start:
-           daemon = GarminSyncDaemon()
-           daemon.start(web_port=port)
-       elif stop:
-           # Implementation for stopping daemon (PID file or signal)
-           pass
-       elif status:
-           # Show current daemon status
-           pass
-   ```
-
-#### **Feature 3: Web UI**
-
-**Implementation Steps:**
-1. **FastAPI Application** (`web/app.py`):
-   ```python
-   from fastapi import FastAPI, Request
-   from fastapi.staticfiles import StaticFiles
-   from fastapi.templating import Jinja2Templates
-   from .routes import router
-   
-   app = FastAPI(title="GarminSync Dashboard")
-   
-   # Mount static files and templates
-   app.mount("/static", StaticFiles(directory="garminsync/web/static"), name="static")
-   templates = Jinja2Templates(directory="garminsync/web/templates")
-   
-   # Include API routes
-   app.include_router(router)
-   
-   @app.get("/")
-   async def dashboard(request: Request):
-       # Get current statistics
-       from ..database import get_offline_stats
-       stats = get_offline_stats()
-       
-       return templates.TemplateResponse("dashboard.html", {
-           "request": request,
-           "stats": stats
-       })
-   ```
-
-2. **API Routes** (`web/routes.py`):
-   ```python
-   from fastapi import APIRouter, HTTPException
-   from pydantic import BaseModel
-   from ..database import get_session, DaemonConfig, SyncLog
-   
-   router = APIRouter(prefix="/api")
-   
-   class ScheduleConfig(BaseModel):
-       enabled: bool
-       cron_schedule: str
-   
-   @router.get("/status")
-   async def get_status():
-       """Get current daemon status"""
-       session = get_session()
-       config = session.query(DaemonConfig).first()
-       
-       # Get recent logs
-       logs = session.query(SyncLog).order_by(SyncLog.timestamp.desc()).limit(10).all()
-       
-       return {
-           "daemon": {
-               "running": config.status == "running" if config else False,
-               "next_run": config.next_run if config else None,
-               "schedule": config.schedule_cron if config else None
-           },
-           "recent_logs": [
-               {
-                   "timestamp": log.timestamp,
-                   "operation": log.operation,
-                   "status": log.status,
-                   "message": log.message
-               } for log in logs
-           ]
-       }
-   
-   @router.post("/schedule")
-   async def update_schedule(config: ScheduleConfig):
-       """Update daemon schedule configuration"""
-       session = get_session()
-       daemon_config = session.query(DaemonConfig).first()
-       
-       if not daemon_config:
-           daemon_config = DaemonConfig()
-           session.add(daemon_config)
-       
-       daemon_config.enabled = config.enabled
-       daemon_config.schedule_cron = config.cron_schedule
-       session.commit()
-       
-       return {"message": "Configuration updated successfully"}
-   
-   @router.post("/sync/trigger")
-   async def trigger_sync():
-       """Manually trigger a sync operation"""
-       # Implementation to trigger immediate sync
-       pass
-   ```
-
-3. **HTML Templates** (`web/templates/dashboard.html`):
-   ```html
-   {% extends "base.html" %}
-   
-   {% block content %}
-   <div class="container">
-       <h1>GarminSync Dashboard</h1>
-       
-       <div class="row">
-           <div class="col-md-4">
-               <div class="card">
-                   <div class="card-header">Statistics</div>
-                   <div class="card-body">
-                       <p>Total Activities: {{ stats.total }}</p>
-                       <p>Downloaded: {{ stats.downloaded }}</p>
-                       <p>Missing: {{ stats.missing }}</p>
-                       <p>Last Sync: {{ stats.last_sync }}</p>
-                   </div>
-               </div>
-           </div>
-           
-           <div class="col-md-4">
-               <div class="card">
-                   <div class="card-header">Daemon Status</div>
-                   <div class="card-body" id="daemon-status">
-                       <!-- Populated by JavaScript -->
-                   </div>
-               </div>
-           </div>
-           
-           <div class="col-md-4">
-               <div class="card">
-                   <div class="card-header">Quick Actions</div>
-                   <div class="card-body">
-                       <button class="btn btn-primary" onclick="triggerSync()">
-                           Sync Now
-                       </button>
-                       <button class="btn btn-secondary" onclick="toggleDaemon()">
-                           Toggle Daemon
-                       </button>
-                   </div>
-               </div>
-           </div>
-       </div>
-       
-       <div class="row mt-4">
-           <div class="col-12">
-               <div class="card">
-                   <div class="card-header">Recent Activity</div>
-                   <div class="card-body" id="recent-logs">
-                       <!-- Populated by JavaScript -->
-                   </div>
-               </div>
-           </div>
-       </div>
-       
-       <div class="row mt-4">
-           <div class="col-12">
-               <div class="card">
-                   <div class="card-header">Schedule Configuration</div>
-                   <div class="card-body">
-                       <form id="schedule-form">
-                           <div class="form-group">
-                               <label for="schedule-enabled">Enable Scheduled Sync</label>
-                               <input type="checkbox" id="schedule-enabled">
-                           </div>
-                           <div class="form-group">
-                               <label for="cron-schedule">Cron Schedule</label>
-                               <input type="text" class="form-control" id="cron-schedule" 
-                                      placeholder="0 */6 * * *" title="Every 6 hours">
-                           </div>
-                           <button type="submit" class="btn btn-primary">
-                               Update Schedule
-                           </button>
-                       </form>
-                   </div>
-               </div>
-           </div>
-       </div>
-   </div>
-   {% endblock %}
-   ```
-
-4. **JavaScript for Interactivity** (`web/static/app.js`):
-   ```javascript
-   // Auto-refresh dashboard data
-   setInterval(updateStatus, 30000); // Every 30 seconds
-   
-   async function updateStatus() {
-       try {
-           const response = await fetch('/api/status');
-           const data = await response.json();
-           
-           // Update daemon status
-           document.getElementById('daemon-status').innerHTML = `
-               <p>Status: <span class="badge ${data.daemon.running ? 'badge-success' : 'badge-danger'}">
-                   ${data.daemon.running ? 'Running' : 'Stopped'}
-               </span></p>
-               <p>Next Run: ${data.daemon.next_run || 'Not scheduled'}</p>
-               <p>Schedule: ${data.daemon.schedule || 'Not configured'}</p>
-           `;
-           
-           // Update recent logs
-           const logsHtml = data.recent_logs.map(log => `
-               <div class="log-entry">
-                   <small class="text-muted">${log.timestamp}</small>
-                   <span class="badge badge-${log.status === 'success' ? 'success' : 'danger'}">
-                       ${log.status}
-                   </span>
-                   ${log.operation}: ${log.message || ''}
-               </div>
-           `).join('');
-           
-           document.getElementById('recent-logs').innerHTML = logsHtml;
-           
-       } catch (error) {
-           console.error('Failed to update status:', error);
-       }
-   }
-   
-   async function triggerSync() {
-       try {
-           await fetch('/api/sync/trigger', { method: 'POST' });
-           alert('Sync triggered successfully');
-           updateStatus();
-       } catch (error) {
-           alert('Failed to trigger sync');
-       }
-   }
-   
-   // Initialize on page load
-   document.addEventListener('DOMContentLoaded', updateStatus);
-   ```
-
-### **Updated Requirements** (`requirements.txt`):
-```
-typer==0.9.0
-click==8.1.7
-python-dotenv==1.0.0
-garminconnect==0.2.28
-sqlalchemy==2.0.23
-tqdm==4.66.1
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-apscheduler==3.10.4
-pydantic==2.5.0
-jinja2==3.1.2
-python-multipart==0.0.6
-aiofiles==23.2.1
-```
-
-### **Docker Updates**:
-```dockerfile
-# Expose web UI port
-EXPOSE 8080
-
-# Update entrypoint to support daemon mode
-ENTRYPOINT ["python", "-m", "garminsync.cli"]
-CMD ["--help"]
-```
-
-### **Usage Examples**:
-
-**Offline Mode:**
-```bash
-# List missing activities without network calls
-docker run --env-file .env -v $(pwd)/data:/app/data garminsync list --missing --offline
-```
-
-**Daemon Mode:**
-```bash
-# Start daemon with web UI on port 8080
-docker run -d --env-file .env -v $(pwd)/data:/app/data -p 8080:8080 garminsync daemon --start
-
-# Access web UI at http://localhost:8080
-```
+#### **Web UI Enhancements**
+- [x] **Template Safety**: Added fallback handling for missing template files
+- [x] **API Error Handling**: Improved error responses and status codes
+- [x] **JavaScript Functions**: Added missing daemon control functions
+- [x] **Status Updates**: Real-time status updates with proper data formatting
 
 -----
 
@@ -648,8 +255,14 @@ docker run -it --env-file .env -v $(pwd)/data:/app/data garminsync --help
 # List all activities
 docker run -it --env-file .env -v $(pwd)/data:/app/data garminsync list --all
 
+# List missing activities offline
+docker run -it --env-file .env -v $(pwd)/data:/app/data garminsync list --missing --offline
+
 # Download missing activities
 docker run -it --env-file .env -v $(pwd)/data:/app/data garminsync download --missing
+
+# Start daemon with web UI
+docker run -it --env-file .env -v $(pwd)/data:/app/data -p 8080:8080 garminsync daemon
 ```
 
 -----
@@ -689,20 +302,86 @@ def sync_database(garmin_client):
         # Only add new activities, preserve existing download status
         existing = session.query(Activity).filter_by(activity_id=activity_id).first()
         if not existing:
-            new_activity = Activity(...)
+            new_activity = Activity(
+                activity_id=activity_id,
+                start_time=start_time,
+                downloaded=False,
+                created_at=datetime.now().isoformat(),
+                last_sync=datetime.now().isoformat()
+            )
             session.add(new_activity)
 ```
 
-### **CLI Integration**
-Clean separation between CLI interface and business logic with proper type annotations:
+### **Daemon Implementation**
+The daemon uses APScheduler for reliable background task execution:
 
 ```python
-def list_activities(
-    all_activities: Annotated[bool, typer.Option("--all", help="List all activities")] = False,
-    missing: Annotated[bool, typer.Option("--missing", help="List missing activities")] = False,
-    downloaded: Annotated[bool, typer.Option("--downloaded", help="List downloaded activities")] = False
-):
+class GarminSyncDaemon:
+    def __init__(self):
+        self.scheduler = BackgroundScheduler()
+        self.running = False
+        self.web_server = None
+        
+    def start(self, web_port=8080):
+        config_data = self.load_config()
+        if config_data['enabled']:
+            self.scheduler.add_job(
+                func=self.sync_and_download,
+                trigger=CronTrigger.from_crontab(config_data['schedule_cron']),
+                id='sync_job',
+                replace_existing=True
+            )
 ```
+
+### **Web API Integration**
+FastAPI provides RESTful endpoints for daemon control and monitoring:
+
+```python
+@router.get("/status")
+async def get_status():
+    """Get current daemon status with logs"""
+    config = session.query(DaemonConfig).first()
+    logs = session.query(SyncLog).order_by(SyncLog.timestamp.desc()).limit(10).all()
+    return {
+        "daemon": {"running": config.status == "running"},
+        "recent_logs": [{"timestamp": log.timestamp, "status": log.status} for log in logs]
+    }
+```
+
+-----
+
+## **Known Issues & Limitations**
+
+### **Current Limitations**
+1. **Web Interface**: Some components need completion (detailed below)
+2. **Error Recovery**: Limited automatic retry logic for failed downloads
+3. **Batch Processing**: No support for selective activity date range downloads
+4. **Authentication**: No support for two-factor authentication (2FA)
+
+### **Dependency Issues Resolved**
+- ✅ **Pydantic Conflicts**: Fixed version constraints to avoid `garth` compatibility issues
+- ✅ **Missing Fields**: Added all required database fields
+- ✅ **Import Errors**: Resolved circular import problems
+
+-----
+
+## **Performance Considerations**
+
+- **Rate Limiting**: 2-second delays between API requests prevent server overload
+- **Batch Processing**: Fetches up to 1000 activities per sync operation
+- **Efficient Queries**: Database queries optimized for filtering operations
+- **Memory Management**: Proper session cleanup and resource management
+- **Docker Optimization**: Layer caching and minimal base image for faster builds
+- **Background Processing**: Daemon mode prevents blocking CLI operations
+
+-----
+
+## **Security Considerations**
+
+- **Credential Storage**: Environment variables prevent hardcoded credentials
+- **File Permissions**: Docker container runs with appropriate user permissions
+- **API Rate Limiting**: Respects Garmin Connect rate limits to prevent account restrictions
+- **Error Logging**: Sensitive information excluded from logs and error messages
 
 -----
 
@@ -715,13 +394,433 @@ Here are links to the official documentation for the key libraries used:
 * **Environment Variables:** [python-dotenv](https://github.com/theskumar/python-dotenv)
 * **Database ORM:** [SQLAlchemy](https://docs.sqlalchemy.org/en/20/)
 * **Progress Bars:** [tqdm](https://github.com/tqdm/tqdm)
+* **Web Framework:** [FastAPI](https://fastapi.tiangolo.com/)
+* **Task Scheduler:** [APScheduler](https://apscheduler.readthedocs.io/)
 
 -----
 
-## **Performance Considerations**
+## **Web Interface Implementation Steps**
 
-- **Rate Limiting**: 2-second delays between API requests prevent server overload
-- **Batch Processing**: Fetches up to 1000 activities per sync operation
-- **Efficient Queries**: Database queries optimized for filtering operations
-- **Memory Management**: Proper session cleanup and resource management
-- **Docker Optimization**: Layer caching and minimal base image for faster builds
+### **🎯 Missing Components to Complete**
+
+#### **1. Enhanced Dashboard Components**
+
+**A. Real-time Activity Counter**
+- **File:** `garminsync/web/templates/dashboard.html`
+- **Implementation:**
+  ```html
+  <div class="col-md-3">
+      <div class="card bg-info text-white">
+          <div class="card-body">
+              <h4 id="sync-status">Idle</h4>
+              <p>Current Operation</p>
+          </div>
+      </div>
+  </div>
+  ```
+- **JavaScript Update:** Add WebSocket or periodic updates for sync status
+
+**B. Activity Progress Charts**
+- **File:** Add Chart.js to `garminsync/web/static/charts.js`
+- **Implementation:**
+  ```javascript
+  // Add to dashboard
+  const ctx = document.getElementById('activityChart').getContext('2d');
+  const chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+          labels: ['Downloaded', 'Missing'],
+          datasets: [{
+              data: [downloaded, missing],
+              backgroundColor: ['#28a745', '#dc3545']
+          }]
+      }
+  });
+  ```
+
+#### **2. Enhanced Configuration Page**
+
+**A. Advanced Schedule Options**
+- **File:** `garminsync/web/templates/config.html`
+- **Add Preset Schedules:**
+  ```html
+  <div class="form-group">
+      <label>Quick Schedule Presets</label>
+      <select id="schedule-presets" class="form-control">
+          <option value="">Custom</option>
+          <option value="0 */1 * * *">Every Hour</option>
+          <option value="0 */6 * * *">Every 6 Hours</option>
+          <option value="0 0 * * *">Daily at Midnight</option>
+          <option value="0 0 * * 0">Weekly (Sundays)</option>
+      </select>
+  </div>
+  ```
+
+**B. Notification Settings**
+- **New Model in `database.py`:**
+  ```python
+  class NotificationConfig(Base):
+      __tablename__ = 'notification_config'
+      
+      id = Column(Integer, primary_key=True)
+      email_enabled = Column(Boolean, default=False)
+      email_address = Column(String, nullable=True)
+      webhook_enabled = Column(Boolean, default=False)
+      webhook_url = Column(String, nullable=True)
+      notify_on_success = Column(Boolean, default=True)
+      notify_on_error = Column(Boolean, default=True)
+  ```
+
+#### **3. Comprehensive Logs Page**
+
+**A. Create Dedicated Logs Page**
+- **File:** `garminsync/web/templates/logs.html`
+- **Implementation:**
+  ```html
+  {% extends "base.html" %}
+  
+  {% block content %}
+  <div class="container">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>Sync Logs</h1>
+          <div>
+              <button class="btn btn-secondary" onclick="refreshLogs()">Refresh</button>
+              <button class="btn btn-warning" onclick="clearLogs()">Clear Logs</button>
+          </div>
+      </div>
+      
+      <!-- Filters -->
+      <div class="card mb-4">
+          <div class="card-header">Filters</div>
+          <div class="card-body">
+              <div class="row">
+                  <div class="col-md-3">
+                      <select id="status-filter" class="form-control">
+                          <option value="">All Statuses</option>
+                          <option value="success">Success</option>
+                          <option value="error">Error</option>
+                          <option value="partial">Partial</option>
+                      </select>
+                  </div>
+                  <div class="col-md-3">
+                      <select id="operation-filter" class="form-control">
+                          <option value="">All Operations</option>
+                          <option value="sync">Sync</option>
+                          <option value="download">Download</option>
+                          <option value="daemon">Daemon</option>
+                      </select>
+                  </div>
+                  <div class="col-md-3">
+                      <input type="date" id="date-filter" class="form-control">
+                  </div>
+                  <div class="col-md-3">
+                      <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+      
+      <!-- Logs Table -->
+      <div class="card">
+          <div class="card-header">Log Entries</div>
+          <div class="card-body">
+              <div class="table-responsive">
+                  <table class="table table-striped" id="logs-table">
+                      <thead>
+                          <tr>
+                              <th>Timestamp</th>
+                              <th>Operation</th>
+                              <th>Status</th>
+                              <th>Message</th>
+                              <th>Activities</th>
+                          </tr>
+                      </thead>
+                      <tbody id="logs-tbody">
+                          <!-- Populated by JavaScript -->
+                      </tbody>
+                  </table>
+              </div>
+              
+              <!-- Pagination -->
+              <nav>
+                  <ul class="pagination justify-content-center" id="pagination">
+                      <!-- Populated by JavaScript -->
+                  </ul>
+              </nav>
+          </div>
+      </div>
+  </div>
+  {% endblock %}
+  ```
+
+**B. Enhanced Logs API**
+- **File:** `garminsync/web/routes.py`
+- **Add Filtering and Pagination:**
+  ```python
+  @router.get("/logs")
+  async def get_logs(
+      limit: int = 50,
+      offset: int = 0,
+      status: str = None,
+      operation: str = None,
+      date: str = None
+  ):
+      """Get logs with filtering and pagination"""
+      session = get_session()
+      try:
+          query = session.query(SyncLog)
+          
+          # Apply filters
+          if status:
+              query = query.filter(SyncLog.status == status)
+          if operation:
+              query = query.filter(SyncLog.operation == operation)
+          if date:
+              # Filter by date (assuming ISO format)
+              query = query.filter(SyncLog.timestamp.like(f"{date}%"))
+          
+          # Get total count for pagination
+          total = query.count()
+          
+          # Apply pagination
+          logs = query.order_by(SyncLog.timestamp.desc()).offset(offset).limit(limit).all()
+          
+          return {
+              "logs": [log_to_dict(log) for log in logs],
+              "total": total,
+              "limit": limit,
+              "offset": offset
+          }
+      finally:
+          session.close()
+  
+  def log_to_dict(log):
+      return {
+          "id": log.id,
+          "timestamp": log.timestamp,
+          "operation": log.operation,
+          "status": log.status,
+          "message": log.message,
+          "activities_processed": log.activities_processed,
+          "activities_downloaded": log.activities_downloaded
+      }
+  ```
+
+#### **4. Activity Management Page**
+
+**A. Create Activities Page**
+- **File:** `garminsync/web/templates/activities.html`
+- **Features:**
+  - List all activities with status
+  - Filter by date range, status, activity type
+  - Bulk download options
+  - Individual activity details modal
+
+**B. Activity Details API**
+- **File:** `garminsync/web/routes.py`
+- **Implementation:**
+  ```python
+  @router.get("/activities")
+  async def get_activities(
+      limit: int = 100,
+      offset: int = 0,
+      downloaded: bool = None,
+      start_date: str = None,
+      end_date: str = None
+  ):
+      """Get activities with filtering and pagination"""
+      session = get_session()
+      try:
+          query = session.query(Activity)
+          
+          if downloaded is not None:
+              query = query.filter(Activity.downloaded == downloaded)
+          if start_date:
+              query = query.filter(Activity.start_time >= start_date)
+          if end_date:
+              query = query.filter(Activity.start_time <= end_date)
+          
+          total = query.count()
+          activities = query.order_by(Activity.start_time.desc()).offset(offset).limit(limit).all()
+          
+          return {
+              "activities": [activity_to_dict(a) for a in activities],
+              "total": total,
+              "limit": limit,
+              "offset": offset
+          }
+      finally:
+          session.close()
+  
+  @router.post("/activities/{activity_id}/download")
+  async def download_single_activity(activity_id: int):
+      """Download a specific activity"""
+      # Implementation to download single activity
+      pass
+  ```
+
+#### **5. System Status Page**
+
+**A. Create System Status Template**
+- **File:** `garminsync/web/templates/system.html`
+- **Show:**
+  - Database statistics
+  - Disk usage
+  - Memory usage
+  - API rate limiting status
+  - Last errors
+
+**B. System Status API**
+- **File:** `garminsync/web/routes.py`
+- **Implementation:**
+  ```python
+  @router.get("/system/status")
+  async def get_system_status():
+      """Get comprehensive system status"""
+      import psutil
+      import os
+      from pathlib import Path
+      
+      # Database stats
+      session = get_session()
+      try:
+          db_stats = {
+              "total_activities": session.query(Activity).count(),
+              "downloaded_activities": session.query(Activity).filter_by(downloaded=True).count(),
+              "total_logs": session.query(SyncLog).count(),
+              "database_size": get_database_size()
+          }
+      finally:
+          session.close()
+      
+      # System stats
+      data_dir = Path(os.getenv("DATA_DIR", "data"))
+      disk_usage = psutil.disk_usage(str(data_dir))
+      
+      return {
+          "database": db_stats,
+          "system": {
+              "cpu_percent": psutil.cpu_percent(),
+              "memory": psutil.virtual_memory()._asdict(),
+              "disk_usage": {
+                  "total": disk_usage.total,
+                  "used": disk_usage.used,
+                  "free": disk_usage.free
+              }
+          },
+          "garmin_api": {
+              "last_successful_call": get_last_successful_api_call(),
+              "rate_limit_remaining": get_rate_limit_status()
+          }
+      }
+  ```
+
+#### **6. Enhanced Navigation and Layout**
+
+**A. Update Base Template**
+- **File:** `garminsync/web/templates/base.html`
+- **Add Complete Navigation:**
+  ```html
+  <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+          <li class="nav-item">
+              <a class="nav-link" href="/">Dashboard</a>
+          </li>
+          <li class="nav-item">
+              <a class="nav-link" href="/activities">Activities</a>
+          </li>
+          <li class="nav-item">
+              <a class="nav-link" href="/logs">Logs</a>
+          </li>
+          <li class="nav-item">
+              <a class="nav-link" href="/config">Configuration</a>
+          </li>
+          <li class="nav-item">
+              <a class="nav-link" href="/system">System</a>
+          </li>
+      </ul>
+      <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+              <span class="navbar-text" id="connection-status">
+                  <i class="fas fa-circle text-success"></i> Connected
+              </span>
+          </li>
+      </ul>
+  </div>
+  ```
+
+**B. Add FontAwesome Icons**
+- **Update base template with:**
+  ```html
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  ```
+
+### **🔄 Implementation Order**
+
+1. **Week 1: Enhanced Dashboard**
+   - Add real-time counters and charts
+   - Implement activity progress visualization
+   - Add sync status indicators
+
+2. **Week 2: Logs Page**
+   - Create comprehensive logs template
+   - Implement filtering and pagination APIs
+   - Add log management features
+
+3. **Week 3: Activities Management**
+   - Build activities listing page
+   - Add filtering and search capabilities
+   - Implement individual activity actions
+
+4. **Week 4: System Status & Configuration**
+   - Create system monitoring page
+   - Enhanced configuration options
+   - Notification system setup
+
+5. **Week 5: Polish & Testing**
+   - Improve responsive design
+   - Add error handling and loading states
+   - Performance optimization
+
+### **📁 New Files Needed**
+
+```
+garminsync/web/
+├── templates/
+│   ├── activities.html        # New: Activity management
+│   ├── logs.html             # New: Enhanced logs page
+│   └── system.html           # New: System status
+├── static/
+│   ├── charts.js             # New: Chart.js integration
+│   ├── activities.js         # New: Activity management JS
+│   └── system.js             # New: System monitoring JS
+```
+
+### **🛠️ Required Dependencies**
+
+Add to `requirements.txt`:
+```
+psutil==5.9.6                # For system monitoring
+python-dateutil==2.8.2       # For date parsing
+```
+
+This comprehensive implementation plan will transform the basic web interface into a full-featured dashboard for managing GarminSync operations.
+
+### **Planned Features**
+- **Authentication**: Support for two-factor authentication
+- **Selective Sync**: Date range and activity type filtering
+- **Export Options**: Support for additional export formats (GPX, TCX)
+- **Notification System**: Email/webhook notifications for sync completion
+- **Activity Analysis**: Basic statistics and activity summary features
+- **Multi-user Support**: Support for multiple Garmin accounts
+- **Cloud Storage**: Integration with cloud storage providers
+- **Mobile Interface**: Responsive design improvements for mobile devices
+
+### **Technical Improvements**
+- **Health Checks**: Comprehensive health monitoring endpoints
+- **Metrics**: Prometheus metrics for monitoring and alerting
+- **Database Migrations**: Automatic schema migration support
+- **Configuration Validation**: Enhanced validation for cron expressions and settings
+- **Logging Enhancement**: Structured logging with configurable levels
+- **Test Coverage**: Comprehensive unit and integration tests
+- **CI/CD Pipeline**: Automated testing and deployment workflows
