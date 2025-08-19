@@ -2,11 +2,14 @@
 
 {% block content %}
 <div class="container">
-    <h1>GarminSync Configuration</h1>
+    <div class="navigation"></div>
     
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
+    <div class="card">
+        <div class="card-header">
+            <h3>GarminSync Configuration</h3>
+        </div>
+        <div class="card-body">
+            <div class="card mb-4">
                 <div class="card-header">Daemon Settings</div>
                 <div class="card-body">
                     <form id="daemon-config-form">
@@ -28,20 +31,25 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <div class="row mt-4">
-        <div class="col-12">
+            
             <div class="card">
                 <div class="card-header">Daemon Status</div>
                 <div class="card-body">
-                    <p>Current Status: <span id="daemon-status-text">{{ config.status|capitalize }}</span></p>
-                    <p>Last Run: <span id="daemon-last-run">{{ config.last_run or 'Never' }}</span></p>
-                    <p>Next Run: <span id="daemon-next-run">{{ config.next_run or 'Not scheduled' }}</span></p>
+                    <div class="stat-item">
+                        <label>Current Status:</label>
+                        <span id="daemon-status-text">{{ config.status|capitalize }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Last Run:</label>
+                        <span id="daemon-last-run">{{ config.last_run or 'Never' }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Next Run:</label>
+                        <span id="daemon-next-run">{{ config.next_run or 'Not scheduled' }}</span>
+                    </div>
                     
                     <div class="mt-3">
-                        <button id="start-daemon-btn" class="btn btn-success mr-2">
+                        <button id="start-daemon-btn" class="btn btn-success">
                             Start Daemon
                         </button>
                         <button id="stop-daemon-btn" class="btn btn-danger">
@@ -53,7 +61,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block page_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Form submission handler
@@ -74,14 +84,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             if (response.ok) {
-                alert('Configuration saved successfully');
+                Utils.showSuccess('Configuration saved successfully');
                 updateStatus();
             } else {
                 const error = await response.json();
-                alert(`Error: ${error.detail}`);
+                Utils.showError(`Error: ${error.detail}`);
             }
         } catch (error) {
-            alert('Failed to save configuration: ' + error.message);
+            Utils.showError('Failed to save configuration: ' + error.message);
         }
     });
     
@@ -90,14 +100,14 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/daemon/start', { method: 'POST' });
             if (response.ok) {
-                alert('Daemon started successfully');
+                Utils.showSuccess('Daemon started successfully');
                 updateStatus();
             } else {
                 const error = await response.json();
-                alert(`Error: ${error.detail}`);
+                Utils.showError(`Error: ${error.detail}`);
             }
         } catch (error) {
-            alert('Failed to start daemon: ' + error.message);
+            Utils.showError('Failed to start daemon: ' + error.message);
         }
     });
     
@@ -105,14 +115,14 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/daemon/stop', { method: 'POST' });
             if (response.ok) {
-                alert('Daemon stopped successfully');
+                Utils.showSuccess('Daemon stopped successfully');
                 updateStatus();
             } else {
                 const error = await response.json();
-                alert(`Error: ${error.detail}`);
+                Utils.showError(`Error: ${error.detail}`);
             }
         } catch (error) {
-            alert('Failed to stop daemon: ' + error.message);
+            Utils.showError('Failed to stop daemon: ' + error.message);
         }
     });
     

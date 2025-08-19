@@ -1,0 +1,78 @@
+/* Mobile-first responsive design */
+@media (max-width: 768px) {
+    .layout-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .sidebar {
+        order: 2;
+    }
+    
+    .main-content {
+        order: 1;
+    }
+    
+    .activities-table {
+        font-size: 12px;
+    }
+    
+    .activities-table th,
+    .activities-table td {
+        padding: 8px 10px;
+    }
+    
+    .nav-tabs {
+        flex-direction: column;
+    }
+    
+    .container {
+        padding: 0 10px;
+    }
+    
+    .card {
+        padding: 15px;
+    }
+    
+    .btn {
+        padding: 8px 15px;
+        font-size: 14px;
+    }
+    
+    .btn-large {
+        padding: 12px 20px;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .activities-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .stat-item {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .log-content {
+        padding: 5px;
+        font-size: 0.8rem;
+    }
+    
+    .log-entry {
+        padding: 5px;
+    }
+    
+    .pagination a {
+        padding: 6px 10px;
+        font-size: 14px;
+    }
+    
+    .form-control {
+        padding: 8px;
+        font-size: 14px;
+    }
+}

@@ -2,100 +2,46 @@
 
 {% block content %}
 <div class="container">
-    <h1>GarminSync Dashboard</h1>
+    <div class="navigation"></div>
     
-    <div class="row">
-        <!-- Real-time Activity Counter -->
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h4 id="sync-status">Idle</h4>
-                    <p>Current Operation</p>
+    <div class="layout-grid">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <div class="card sync-card">
+                <button id="sync-now-btn" class="btn btn-primary btn-large">
+                    <i class="icon-sync"></i>
+                    Sync Now
+                </button>
+                <div class="sync-status" id="sync-status">
+                    Ready to sync
+                </div>
+            </div>
+            
+            <div class="card statistics-card">
+                <h3>Statistics</h3>
+                <div class="stat-item">
+                    <label>Total Activities:</label>
+                    <span id="total-activities">{{stats.total}}</span>
+                </div>
+                <div class="stat-item">
+                    <label>Downloaded:</label>
+                    <span id="downloaded-activities">{{stats.downloaded}}</span>
+                </div>
+                <div class="stat-item">
+                    <label>Missing:</label>
+                    <span id="missing-activities">{{stats.missing}}</span>
                 </div>
             </div>
         </div>
         
-        <!-- Activity Progress Chart -->
-        <div class="col-md-5">
-            <div class="card">
-                <div class="card-header">Activity Progress</div>
-                <div class="card-body">
-                    <canvas id="activityChart" width="400" height="200"></canvas>
+        <!-- Right Content Area -->
+        <div class="main-content">
+            <div class="card log-display">
+                <div class="card-header">
+                    <h3>Log Data</h3>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Daemon Status -->
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">Daemon Status</div>
-                <div class="card-body" id="daemon-status">
-                    <!-- Populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mt-4">
-        <!-- Statistics Card -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">Statistics</div>
-                <div class="card-body">
-                    <p>Total Activities: {{ stats.total }}</p>
-                    <p>Downloaded: {{ stats.downloaded }}</p>
-                    <p>Missing: {{ stats.missing }}</p>
-                    <p>Last Sync: {{ stats.last_sync }}</p>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Quick Actions Card -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">Quick Actions</div>
-                <div class="card-body">
-                    <button class="btn btn-primary" onclick="triggerSync()">
-                        Sync Now
-                    </button>
-                    <button class="btn btn-secondary" onclick="toggleDaemon()">
-                        Toggle Daemon
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">Recent Activity</div>
-                <div class="card-body" id="recent-logs">
-                    <!-- Populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">Schedule Configuration</div>
-                <div class="card-body">
-                    <form id="schedule-form">
-                        <div class="form-group">
-                            <label for="schedule-enabled">Enable Scheduled Sync</label>
-                            <input type="checkbox" id="schedule-enabled">
-                        </div>
-                        <div class="form-group">
-                            <label for="cron-schedule">Cron Schedule</label>
-                            <input type="text" class="form-control" id="cron-schedule" 
-                                placeholder="0 */6 * * *" title="Every 6 hours">
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            Update Schedule
-                        </button>
-                    </form>
+                <div class="log-content" id="log-content">
+                    <!-- Real-time log updates will appear here -->
                 </div>
             </div>
         </div>
@@ -103,6 +49,6 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script src="/static/charts.js"></script>
+{% block page_scripts %}
+<script src="/static/home.js"></script>
 {% endblock %}

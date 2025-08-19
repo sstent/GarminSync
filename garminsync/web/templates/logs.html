@@ -2,51 +2,51 @@
 
 {% block content %}
 <div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Sync Logs</h1>
-        <div>
-            <button class="btn btn-secondary" onclick="refreshLogs()">Refresh</button>
-            <button class="btn btn-warning" onclick="clearLogs()">Clear Logs</button>
-        </div>
-    </div>
+    <div class="navigation"></div>
     
-    <!-- Filters -->
-    <div class="card mb-4">
-        <div class="card-header">Filters</div>
+    <div class="card">
+        <div class="card-header">
+            <h3>Sync Logs</h3>
+        </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <select id="status-filter" class="form-control">
-                        <option value="">All Statuses</option>
-                        <option value="success">Success</option>
-                        <option value="error">Error</option>
-                        <option value="partial">Partial</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select id="operation-filter" class="form-control">
-                        <option value="">All Operations</option>
-                        <option value="sync">Sync</option>
-                        <option value="download">Download</option>
-                        <option value="daemon">Daemon</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <input type="date" id="date-filter" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-header">Filters</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="status-filter">Status</label>
+                        <select id="status-filter" class="form-control">
+                            <option value="">All Statuses</option>
+                            <option value="success">Success</option>
+                            <option value="error">Error</option>
+                            <option value="partial">Partial</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="operation-filter">Operation</label>
+                        <select id="operation-filter" class="form-control">
+                            <option value="">All Operations</option>
+                            <option value="sync">Sync</option>
+                            <option value="download">Download</option>
+                            <option value="daemon">Daemon</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date-filter">Date</label>
+                        <input type="date" id="date-filter" class="form-control">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                    <button class="btn btn-secondary" onclick="refreshLogs()">Refresh</button>
+                    <button class="btn btn-warning" onclick="clearLogs()">Clear Logs</button>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <!-- Logs Table -->
-    <div class="card">
-        <div class="card-header">Log Entries</div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped" id="logs-table">
+            
+            <!-- Logs Table -->
+            <div class="table-container">
+                <table class="activities-table" id="logs-table">
                     <thead>
                         <tr>
                             <th>Timestamp</th>
@@ -64,16 +64,16 @@
             </div>
             
             <!-- Pagination -->
-            <nav>
-                <ul class="pagination justify-content-center" id="pagination">
+            <div class="pagination-container">
+                <div class="pagination" id="pagination">
                     <!-- Populated by JavaScript -->
-                </ul>
-            </nav>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block page_scripts %}
 <script src="/static/logs.js"></script>
 {% endblock %}

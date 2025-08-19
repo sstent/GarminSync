@@ -159,6 +159,19 @@ def daemon_mode(
     else:
         typer.echo("Please specify one of: --start, --stop, --status")
 
+@app.command("migrate")
+def migrate_activities():
+    """Migrate database to add new activity fields"""
+    from .migrate_activities import migrate_activities as run_migration
+    
+    typer.echo("Starting database migration...")
+    success = run_migration()
+    if success:
+        typer.echo("Database migration completed successfully!")
+    else:
+        typer.echo("Database migration failed!")
+        raise typer.Exit(code=1)
+
 def main():
     app()
 

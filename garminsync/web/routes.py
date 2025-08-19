@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from garminsync.database import get_session, DaemonConfig, SyncLog
+from garminsync.database import get_session, DaemonConfig, SyncLog, Activity
+from typing import Optional
 
 router = APIRouter(prefix="/api")
 
@@ -239,3 +240,91 @@ async def clear_logs():
         raise HTTPException(status_code=500, detail=f"Failed to clear logs: {str(e)}")
     finally:
         session.close()
+
+@router.get("/activities")
+async def get_activities(
+    page: int = 1,
+    per_page: int = 50,
+    activity_type: str = None,
+    date_from: str = None,
+    date_to: str = None
+):
+    """Get paginated activities with filtering"""
+    session = get_session()
+    try:
+        query = session.query(Activity)
+        
+        # Apply filters
+        if activity_type:
+            query = query.filter(Activity.activity_type == activity_type)
+        if date_from:
+            query = query.filter(Activity.start_time >= date_from)
+        if date_to:
+            query = query.filter(Activity.start_time <= date_to)
+        
+        # Get total count for pagination
+        total = query.count()
+        
+        # Apply pagination
+        activities = query.order_by(Activity.start_time.desc()) \
+                         .offset((page - 1) * per_page) \
+                         .limit(per_page) \
+                         .all()
+        
+        activity_data = []
+        for activity in activities:
+            activity_data.append({
+                "activity_id": activity.activity_id,
+                "start_time": activity.start_time,
+                "activity_type": activity.activity_type,
+                "duration": activity.duration,
+                "distance": activity.distance,
+                "max_heart_rate": activity.max_heart_rate,
+                "avg_power": activity.avg_power,
+                "calories": activity.calories,
+                "filename": activity.filename,
+                "downloaded": activity.downloaded,
+                "created_at": activity.created_at,
+                "last_sync": activity.last_sync
+            })
+        
+        return {
+            "activities": activity_data,
+            "total": total,
+            "page": page,
+            "per_page": per_page
+        }
+    finally:
+        session.close()
+
+@router.get("/activities/{activity_id}")
+async def get_activity_details(activity_id: int):
+    """Get detailed activity information"""
+    session = get_session()
+    try:
+        activity = session.query(Activity).filter(Activity.activity_id == activity_id).first()
+        if not activity:
+            raise HTTPException(status_code=404, detail="Activity not found")
+        
+        return {
+            "activity_id": activity.activity_id,
+            "start_time": activity.start_time,
+            "activity_type": activity.activity_type,
+            "duration": activity.duration,
+            "distance": activity.distance,
+            "max_heart_rate": activity.max_heart_rate,
+            "avg_power": activity.avg_power,
+            "calories": activity.calories,
+            "filename": activity.filename,
+            "downloaded": activity.downloaded,
+            "created_at": activity.created_at,
+            "last_sync": activity.last_sync
+        }
+    finally:
+        session.close()
+
+@router.get("/dashboard/stats")
+async def get_dashboard_stats():
+    """Get comprehensive dashboard statistics"""
+    from garminsync.database import get_offline_stats
+    return get_offline_stats()

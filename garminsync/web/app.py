@@ -72,6 +72,16 @@ async def config_page(request: Request):
         "request": request
     })
 
+@app.get("/activities")
+async def activities_page(request: Request):
+    """Activities page route"""
+    if not templates:
+        return JSONResponse({"message": "Activities endpoint"})
+    
+    return templates.TemplateResponse("activities.html", {
+        "request": request
+    })
+
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):

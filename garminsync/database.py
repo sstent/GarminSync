@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -10,9 +10,15 @@ class Activity(Base):
     
     activity_id = Column(Integer, primary_key=True)
     start_time = Column(String, nullable=False)
+    activity_type = Column(String, nullable=True)  # NEW
+    duration = Column(Integer, nullable=True)      # NEW (seconds)
+    distance = Column(Float, nullable=True)        # NEW (meters)
+    max_heart_rate = Column(Integer, nullable=True) # NEW
+    avg_power = Column(Float, nullable=True)       # NEW
+    calories = Column(Integer, nullable=True)      # NEW
     filename = Column(String, unique=True, nullable=True)
     downloaded = Column(Boolean, default=False, nullable=False)
-    created_at = Column(String, nullable=False)  # Add this line
+    created_at = Column(String, nullable=False)
     last_sync = Column(String, nullable=True)  # ISO timestamp of last sync
 
 class DaemonConfig(Base):
