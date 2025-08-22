@@ -16,14 +16,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir alembic
 # Copy application code
 COPY garminsync/ ./garminsync/
+COPY migrations/ ./migrations/
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 # Create data directory
 RUN mkdir -p /app/data
-
 # Set environment variables from .env file
 ENV ENV_FILE=/app/.env
 ENV DATA_DIR=/app/data
@@ -32,5 +34,5 @@ ENV DATA_DIR=/app/data
 EXPOSE 8080
 
 # Update entrypoint to support daemon mode
-ENTRYPOINT ["python", "-m", "garminsync.cli"]
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["--help"]
