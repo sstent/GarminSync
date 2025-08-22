@@ -1,40 +1,45 @@
 import signal
 import sys
-import time
 import threading
+import time
 from datetime import datetime
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from .database import get_session, Activity, DaemonConfig, SyncLog
+
+from .database import Activity, DaemonConfig, SyncLog, get_session
 from .garmin import GarminClient
 from .utils import logger
+
 
 class GarminSyncDaemon:
     def __init__(self):
         self.scheduler = BackgroundScheduler()
         self.running = False
         self.web_server = None
-        
-    def start(self, web_port=8080):
+
+    def start(self, web_port=8888):
         """Start daemon with scheduler and web UI"""
         try:
             # Load configuration from database
             config_data = self.load_config()
-            
+
             # Setup scheduled job
-            if config_data['enabled']:
-                cron_str = config_data['schedule_cron']
+            if config_data["enabled"]:
+                cron_str = config_data["schedule_cron"]
                 try:
                     # Validate cron string
                     if not cron_str or len(cron_str.strip().split()) != 5:
-                        logger.error(f"Invalid cron schedule: '{cron_str}'. Using default '0 */6 * * *'")
+                        logger.error(
+                            f"Invalid cron schedule: '{cron_str}'. Using default '0 */6 * * *'"
+                        )
                         cron_str = "0 */6 * * *"
-                    
+
                     self.scheduler.add_job(
                         func=self.sync_and_download,
                         trigger=CronTrigger.from_crontab(cron_str),
-                        id='sync_job',
-                        replace_existing=True
+                        id="sync_job",
+                        replace_existing=True,
                     )
                     logger.info(f"Scheduled job created with cron: '{cron_str}'")
                 except Exception as e:
@@ -43,98 +48,106 @@ class GarminSyncDaemon:
                     self.scheduler.add_job(
                         func=self.sync_and_download,
                         trigger=CronTrigger.from_crontab("0 */6 * * *"),
-                        id='sync_job',
-                        replace_existing=True
+                        id="sync_job",
+                        replace_existing=True,
                     )
                     logger.info("Using default schedule '0 */6 * * *'")
-            
+
             # Start scheduler
             self.scheduler.start()
             self.running = True
-            
+
             # Update daemon status to running
             self.update_daemon_status("running")
-            
+
             # Start web UI in separate thread
             self.start_web_ui(web_port)
-            
+
             # Setup signal handlers for graceful shutdown
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
-            
-            logger.info(f"Daemon started. Web UI available at http://localhost:{web_port}")
-            
+
+            logger.info(
+                f"Daemon started. Web UI available at http://localhost:{web_port}"
+            )
+
             # Keep daemon running
             while self.running:
                 time.sleep(1)
-                
+
         except Exception as e:
             logger.error(f"Failed to start daemon: {str(e)}")
             self.update_daemon_status("error")
             self.stop()
-            
+
     def sync_and_download(self):
         """Scheduled job function"""
         session = None
         try:
             self.log_operation("sync", "started")
-            
+
             # Import here to avoid circular imports
-            from .garmin import GarminClient
             from .database import sync_database
-            
+            from .garmin import GarminClient
+
             # Perform sync and download
             client = GarminClient()
-            
+
             # Sync database first
             sync_database(client)
-            
+
             # Download missing activities
             downloaded_count = 0
             session = get_session()
-            missing_activities = session.query(Activity).filter_by(downloaded=False).all()
-            
+            missing_activities = (
+                session.query(Activity).filter_by(downloaded=False).all()
+            )
+
             for activity in missing_activities:
                 try:
                     # Use the correct method name
                     fit_data = client.download_activity_fit(activity.activity_id)
-                    
+
                     # Save the file
                     import os
                     from pathlib import Path
+
                     data_dir = Path(os.getenv("DATA_DIR", "data"))
                     data_dir.mkdir(parents=True, exist_ok=True)
-                    
+
                     timestamp = activity.start_time.replace(":", "-").replace(" ", "_")
                     filename = f"activity_{activity.activity_id}_{timestamp}.fit"
                     filepath = data_dir / filename
-                    
+
                     with open(filepath, "wb") as f:
                         f.write(fit_data)
-                    
+
                     activity.filename = str(filepath)
                     activity.downloaded = True
                     activity.last_sync = datetime.now().isoformat()
                     downloaded_count += 1
                     session.commit()
-                    
+
                 except Exception as e:
-                    logger.error(f"Failed to download activity {activity.activity_id}: {e}")
+                    logger.error(
+                        f"Failed to download activity {activity.activity_id}: {e}"
+                    )
                     session.rollback()
-            
-            self.log_operation("sync", "success", 
-                f"Downloaded {downloaded_count} new activities")
-            
+
+            self.log_operation(
+                "sync", "success", f"Downloaded {downloaded_count} new activities"
+            )
+
             # Update last run time
             self.update_daemon_last_run()
-            
+
         except Exception as e:
             logger.error(f"Sync failed: {e}")
             self.log_operation("sync", "error", str(e))
         finally:
             if session:
                 session.close()
-            
+
     def load_config(self):
         """Load daemon configuration from database and return dict"""
         session = get_session()
@@ -143,26 +156,24 @@ class GarminSyncDaemon:
             if not config:
                 # Create default configuration with explicit cron schedule
                 config = DaemonConfig(
-                    schedule_cron="0 */6 * * *",
-                    enabled=True,
-                    status="stopped"
+                    schedule_cron="0 */6 * * *", enabled=True, status="stopped"
                 )
                 session.add(config)
                 session.commit()
                 session.refresh(config)  # Ensure we have the latest data
-            
+
             # Return configuration as dictionary to avoid session issues
             return {
-                'id': config.id,
-                'enabled': config.enabled,
-                'schedule_cron': config.schedule_cron,
-                'last_run': config.last_run,
-                'next_run': config.next_run,
-                'status': config.status
+                "id": config.id,
+                "enabled": config.enabled,
+                "schedule_cron": config.schedule_cron,
+                "last_run": config.last_run,
+                "next_run": config.next_run,
+                "status": config.status,
             }
         finally:
             session.close()
-        
+
     def update_daemon_status(self, status):
         """Update daemon status in database"""
         session = get_session()
@@ -171,12 +182,12 @@ class GarminSyncDaemon:
             if not config:
                 config = DaemonConfig()
                 session.add(config)
-            
+
             config.status = status
             session.commit()
         finally:
             session.close()
-            
+
     def update_daemon_last_run(self):
         """Update daemon last run timestamp"""
         session = get_session()
@@ -187,30 +198,31 @@ class GarminSyncDaemon:
                 session.commit()
         finally:
             session.close()
-        
+
     def start_web_ui(self, port):
         """Start FastAPI web server in a separate thread"""
         try:
-            from .web.app import app
             import uvicorn
-            
+
+            from .web.app import app
+
             def run_server():
                 try:
                     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
                 except Exception as e:
                     logger.error(f"Failed to start web server: {e}")
-                    
+
             web_thread = threading.Thread(target=run_server, daemon=True)
             web_thread.start()
             self.web_server = web_thread
         except ImportError as e:
             logger.warning(f"Could not start web UI: {e}")
-        
+
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
         logger.info("Received shutdown signal, stopping daemon...")
         self.stop()
-        
+
     def stop(self):
         """Stop daemon and clean up resources"""
         if self.scheduler.running:
@@ -219,7 +231,7 @@ class GarminSyncDaemon:
         self.update_daemon_status("stopped")
         self.log_operation("daemon", "stopped", "Daemon shutdown completed")
         logger.info("Daemon stopped")
-        
+
     def log_operation(self, operation, status, message=None):
         """Log sync operation to database"""
         session = get_session()
@@ -230,7 +242,7 @@ class GarminSyncDaemon:
                 status=status,
                 message=message,
                 activities_processed=0,  # Can be updated later if needed
-                activities_downloaded=0  # Can be updated later if needed
+                activities_downloaded=0,  # Can be updated later if needed
             )
             session.add(log)
             session.commit()
@@ -238,7 +250,7 @@ class GarminSyncDaemon:
             logger.error(f"Failed to log operation: {e}")
         finally:
             session.close()
-        
+
     def count_missing(self):
         """Count missing activities"""
         session = get_session()

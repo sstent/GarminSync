@@ -12,5 +12,5 @@ fi
 
 # Start the application
 echo "Starting application..."
-exec python -m garminsync.cli daemon --start
+exec python -m garminsync.cli daemon --start --port 8888
 sleep infinity
