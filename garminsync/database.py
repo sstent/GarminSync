@@ -21,6 +21,7 @@ class Activity(Base):
     duration = Column(Integer, nullable=True)
     distance = Column(Float, nullable=True)
     max_heart_rate = Column(Integer, nullable=True)
+    avg_heart_rate = Column(Integer, nullable=True)
     avg_power = Column(Float, nullable=True)
     calories = Column(Integer, nullable=True)
     filename = Column(String, unique=True, nullable=True)
@@ -63,6 +64,7 @@ class Activity(Base):
             "start_time": self.start_time,
             "activity_type": self.activity_type,
             "max_heart_rate": self.max_heart_rate,
+            "avg_heart_rate": self.avg_heart_rate,
             "avg_power": self.avg_power,
             "calories": self.calories,
         }
@@ -141,6 +143,8 @@ def sync_database(garmin_client):
             # Safely access dictionary keys
             activity_id = activity.get("activityId")
             start_time = activity.get("startTimeLocal")
+            avg_heart_rate = activity.get("averageHR", None)
+            calories = activity.get("calories", None)
 
             if not activity_id or not start_time:
                 print(f"Missing required fields in activity: {activity}")
@@ -153,6 +157,8 @@ def sync_database(garmin_client):
                 new_activity = Activity(
                     activity_id=activity_id,
                     start_time=start_time,
+                    avg_heart_rate=avg_heart_rate,
+                    calories=calories,
                     downloaded=False,
                     created_at=datetime.now().isoformat(),
                     last_sync=datetime.now().isoformat(),

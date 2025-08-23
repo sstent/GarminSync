@@ -7,12 +7,13 @@ class Utils {
         return new Date(dateStr).toLocaleDateString();
     }
     
-    // Format duration from seconds to HH:MM
+    // Format duration from seconds to HH:MM:SS
     static formatDuration(seconds) {
         if (!seconds) return '-';
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        return `${hours}:${minutes.toString().padStart(2, '0')}`;
+        const secondsLeft = seconds % 60;
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${secondsLeft.toString().padStart(2, '0')}`;
     }
     
     // Format distance from meters to kilometers
@@ -24,6 +25,11 @@ class Utils {
     // Format power from watts
     static formatPower(watts) {
         return watts ? `${Math.round(watts)}W` : '-';
+    }
+    
+    // Format heart rate (adds 'bpm')
+    static formatHeartRate(hr) {
+        return hr ? `${hr} bpm` : '-';
     }
     
     // Show error message

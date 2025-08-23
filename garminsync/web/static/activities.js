@@ -65,8 +65,10 @@ class ActivitiesPage {
             <td>${activity.activity_type || '-'}</td>
             <td>${Utils.formatDuration(activity.duration)}</td>
             <td>${Utils.formatDistance(activity.distance)}</td>
-            <td>${activity.max_heart_rate || '-'}</td>
+            <td>${Utils.formatHeartRate(activity.max_heart_rate)}</td>
+            <td>${Utils.formatHeartRate(activity.avg_heart_rate)}</td>
             <td>${Utils.formatPower(activity.avg_power)}</td>
+            <td>${activity.calories ? activity.calories.toLocaleString() : '-'}</td>
         `;
         
         return row;

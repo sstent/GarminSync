@@ -2,8 +2,8 @@
 
 # Run database migrations
 echo "Running database migrations..."
-export ALEMBIC_CONFIG=./migrations/alembic.ini
-export ALEMBIC_SCRIPT_LOCATION=./migrations/versions
+export ALEMBIC_CONFIG=${ALEMBIC_CONFIG:-./migrations/alembic.ini}
+export ALEMBIC_SCRIPT_LOCATION=${ALEMBIC_SCRIPT_LOCATION:-./migrations/versions}
 alembic upgrade head
 if [ $? -ne 0 ]; then
     echo "Migration failed!" >&2

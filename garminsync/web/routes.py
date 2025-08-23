@@ -304,6 +304,7 @@ async def get_activities(
                     "duration": activity.duration,
                     "distance": activity.distance,
                     "max_heart_rate": activity.max_heart_rate,
+                    "avg_heart_rate": activity.avg_heart_rate,
                     "avg_power": activity.avg_power,
                     "calories": activity.calories,
                     "filename": activity.filename,
