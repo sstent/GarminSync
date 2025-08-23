@@ -26,6 +26,7 @@ class Activity(Base):
     calories = Column(Integer, nullable=True)
     filename = Column(String, unique=True, nullable=True)
     downloaded = Column(Boolean, default=False, nullable=False)
+    reprocessed = Column(Boolean, default=False, nullable=False)
     created_at = Column(String, nullable=False)
     last_sync = Column(String, nullable=True)
 
@@ -103,7 +104,7 @@ def init_db():
     Returns:
         SQLAlchemy engine instance
     """
-    db_path = os.path.join(os.getenv("DATA_DIR", "data"), "garmin.db")
+    db_path = os.getenv("DB_PATH", "data/garmin.db")
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
     return engine

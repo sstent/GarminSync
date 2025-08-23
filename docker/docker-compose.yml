@@ -1,0 +1,12 @@
+services:
+  garminsync:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    # Removed entrypoint to rely on Dockerfile configuration
+    volumes:
+      - ../data:/app/data  # Persistent storage for SQLite database
+    ports:
+      - "8888:8888"
+    env_file:
+      - ../.env  # Use the root .env file

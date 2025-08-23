@@ -18,3 +18,5 @@ sqlalchemy==2.0.30
 pylint==3.1.0
 pygments==2.18.0
 fitdecode
+numpy==1.26.0
+scipy==1.11.1

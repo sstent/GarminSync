@@ -6,4 +6,5 @@
 - always rebuild the container before running tests
 - if you need clarification return to PLAN mode
 - force rereading of the mandates on each cycle
+- always track progress of plans in todo.md
 </Mandates>

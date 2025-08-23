@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    extends:
+      file: docker-compose.yml
+      service: backend
+    command: pytest -v tests/
+    environment:
+      - DATABASE_URL=postgresql://garmin:sync@db_test/garminsync_test
+      - TESTING=True
+
+  db_test:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=garmin
+      - POSTGRES_PASSWORD=sync
+      - POSTGRES_DB=garminsync_test
+    networks:
+      - garmin-net
+
+volumes:
+  postgres_test_data:
+
+networks:
+  garmin-net:
+    external: true

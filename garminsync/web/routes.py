@@ -261,6 +261,51 @@ async def clear_logs():
     finally:
         session.close()
 
+@router.post("/activities/{activity_id}/reprocess")
+async def reprocess_activity(activity_id: int):
+    """Reprocess a single activity to update metrics"""
+    from garminsync.database import Activity, get_session
+    from garminsync.activity_parser import get_activity_metrics
+    
+    session = get_session()
+    try:
+        activity = session.query(Activity).get(activity_id)
+        if not activity:
+            raise HTTPException(status_code=404, detail="Activity not found")
+            
+        metrics = get_activity_metrics(activity, force_reprocess=True)
+        if metrics:
+            # Update activity metrics
+            activity.activity_type = metrics.get("activityType", {}).get("typeKey")
+            activity.duration = int(float(metrics.get("duration", 0))) if metrics.get("duration") else activity.duration
+            activity.distance = float(metrics.get("distance", 0)) if metrics.get("distance") else activity.distance
+            activity.max_heart_rate = int(float(metrics.get("maxHR", 0))) if metrics.get("maxHR") else activity.max_heart_rate
+            activity.avg_heart_rate = int(float(metrics.get("avgHR", 0))) if metrics.get("avgHR") else activity.avg_heart_rate
+            activity.avg_power = float(metrics.get("avgPower", 0)) if metrics.get("avgPower") else activity.avg_power
+            activity.calories = int(float(metrics.get("calories", 0))) if metrics.get("calories") else activity.calories
+        
+        # Mark as reprocessed
+        activity.reprocessed = True
+        session.commit()
+        return {"message": f"Activity {activity_id} reprocessed successfully"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
+    finally:
+        session.close()
+
+@router.post("/reprocess")
+async def reprocess_activities(all: bool = False):
+    """Reprocess all activities or just missing ones"""
+    from garminsync.daemon import daemon_instance
+    
+    try:
+        # Trigger reprocess job in daemon
+        daemon_instance.reprocess_activities()
+        return {"message": "Reprocess job started in background"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start reprocess job: {str(e)}")
+
 
 @router.get("/activities")
 async def get_activities(

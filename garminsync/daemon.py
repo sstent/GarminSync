@@ -1,3 +1,4 @@
+import os
 import signal
 import sys
 import threading
@@ -34,8 +35,9 @@ class GarminSyncDaemon:
             # Load configuration from database
             config_data = self.load_config()
 
-            # Setup scheduled job
+            # Setup scheduled jobs
             if config_data["enabled"]:
+                # Sync job
                 cron_str = config_data["schedule_cron"]
                 try:
                     # Validate cron string
@@ -51,7 +53,30 @@ class GarminSyncDaemon:
                         id="sync_job",
                         replace_existing=True,
                     )
-                    logger.info(f"Scheduled job created with cron: '{cron_str}'")
+                    logger.info(f"Sync job scheduled with cron: '{cron_str}'")
+                except Exception as e:
+                    logger.error(f"Failed to create sync job: {str(e)}")
+                    # Fallback to default schedule
+                    self.scheduler.add_job(
+                        func=self.sync_and_download,
+                        trigger=CronTrigger.from_crontab("0 */6 * * *"),
+                        id="sync_job",
+                        replace_existing=True,
+                    )
+                    logger.info("Using default schedule for sync job: '0 */6 * * *'")
+                
+                # Reprocess job - run daily at 2 AM
+                reprocess_cron = "0 2 * * *"  # Daily at 2 AM
+                try:
+                    self.scheduler.add_job(
+                        func=self.reprocess_activities,
+                        trigger=CronTrigger.from_crontab(reprocess_cron),
+                        id="reprocess_job",
+                        replace_existing=True,
+                    )
+                    logger.info(f"Reprocess job scheduled with cron: '{reprocess_cron}'")
+                except Exception as e:
+                    logger.error(f"Failed to create reprocess job: {str(e)}")
                 except Exception as e:
                     logger.error(f"Failed to create scheduled job: {str(e)}")
                     # Fallback to default schedule
@@ -279,5 +304,63 @@ class GarminSyncDaemon:
         session = get_session()
         try:
             return session.query(Activity).filter_by(downloaded=False).count()
+        finally:
+            session.close()
+
+    def reprocess_activities(self):
+        """Reprocess activities to calculate missing metrics"""
+        from .database import get_session
+        from .activity_parser import get_activity_metrics
+        from .database import Activity
+        from tqdm import tqdm
+
+        logger.info("Starting reprocess job")
+        session = get_session()
+        try:
+            # Get activities that need reprocessing
+            activities = session.query(Activity).filter(
+                Activity.downloaded == True,
+                Activity.reprocessed == False
+            ).all()
+
+            if not activities:
+                logger.info("No activities to reprocess")
+                return
+
+            logger.info(f"Reprocessing {len(activities)} activities")
+            success_count = 0
+            
+            # Reprocess each activity
+            for activity in tqdm(activities, desc="Reprocessing"):
+                try:
+                    # Use force_reprocess=True to ensure we parse the file again
+                    metrics = get_activity_metrics(activity, client=None, force_reprocess=True)
+                    
+                    # Update activity metrics if we got new data
+                    if metrics:
+                        activity.activity_type = metrics.get("activityType", {}).get("typeKey")
+                        activity.duration = int(float(metrics.get("duration", 0))) if metrics.get("duration") else activity.duration
+                        activity.distance = float(metrics.get("distance", 0)) if metrics.get("distance") else activity.distance
+                        activity.max_heart_rate = int(float(metrics.get("maxHR", 0))) if metrics.get("maxHR") else activity.max_heart_rate
+                        activity.avg_heart_rate = int(float(metrics.get("avgHR", 0))) if metrics.get("avgHR") else activity.avg_heart_rate
+                        activity.avg_power = float(metrics.get("avgPower", 0)) if metrics.get("avgPower") else activity.avg_power
+                        activity.calories = int(float(metrics.get("calories", 0))) if metrics.get("calories") else activity.calories
+                    
+                    # Mark as reprocessed regardless of success
+                    activity.reprocessed = True
+                    session.commit()
+                    success_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error reprocessing activity {activity.activity_id}: {str(e)}")
+                    session.rollback()
+                    
+            logger.info(f"Reprocessed {success_count}/{len(activities)} activities successfully")
+            self.log_operation("reprocess", "success", f"Reprocessed {success_count} activities")
+            self.update_daemon_last_run()
+            
+        except Exception as e:
+            logger.error(f"Reprocess job failed: {str(e)}")
+            self.log_operation("reprocess", "error", str(e))
         finally:
             session.close()
