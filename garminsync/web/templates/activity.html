@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Details - GarminSync</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">Activity Details</h1>
+        
+        <div id="activity-details">
+            <!-- Activity details will be populated by JavaScript -->
+        </div>
+
+        <div class="mt-4">
+            <h2>Analysis Metrics</h2>
+            <table class="table table-striped" id="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Metrics will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4">
+            <button id="reprocess-btn" class="btn btn-warning">
+                <span id="spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                Reprocess Activity
+            </button>
+            <div id="reprocess-result" class="mt-2"></div>
+        </div>
+
+        <div class="mt-4">
+            <a href="/activities" class="btn btn-secondary">Back to Activities</a>
+        </div>
+    </div>
+
+    <script src="/static/utils.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const activityId = new URLSearchParams(window.location.search).get('id');
+            if (!activityId) {
+                showError('Activity ID not provided');
+                return;
+            }
+
+            // Load activity details
+            await loadActivity(activityId);
+
+            // Setup reprocess button
+            document.getElementById('reprocess-btn').addEventListener('click', () => {
+                reprocessActivity(activityId);
+            });
+        });
+
+        async function loadActivity(activityId) {
+            try {
+                const response = await fetch(`/api/activities/${activityId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load activity details');
+                }
+                
+                const activity = await response.json();
+                renderActivity(activity);
+            } catch (error) {
+                showError(`Error loading activity: ${error.message}`);
+            }
+        }
+
+        function renderActivity(activity) {
+            const detailsEl = document.getElementById('activity-details');
+            detailsEl.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">${activity.name}</h5>
+                        <p class="card-text">
+                            <strong>Date:</strong> ${formatDateTime(activity.start_time)}<br>
+                            <strong>Type:</strong> ${activity.activity_type}<br>
+                            <strong>Duration:</strong> ${formatDuration(activity.duration)}<br>
+                            <strong>Distance:</strong> ${formatDistance(activity.distance)}<br>
+                            <strong>Status:</strong> 
+                                <span class="badge ${activity.reprocessed ? 'bg-success' : 'bg-secondary'}">
+                                    ${activity.reprocessed ? 'Processed' : 'Not Processed'}
+                                </span>
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            // Render metrics
+            const metrics = [
+                { name: 'Max Heart Rate', value: activity.max_heart_rate, unit: 'bpm' },
+                { name: 'Avg Heart Rate', value: activity.avg_heart_rate, unit: 'bpm' },
+                { name: 'Avg Power', value: activity.avg_power, unit: 'W' },
+                { name: 'Calories', value: activity.calories, unit: 'kcal' },
+                { name: 'Gear Ratio', value: activity.gear_ratio, unit: '' },
+                { name: 'Gear Inches', value: activity.gear_inches, unit: '' }
+            ];
+
+            const tableBody = document.getElementById('metrics-table').querySelector('tbody');
+            tableBody.innerHTML = '';
+            
+            metrics.forEach(metric => {
+                if (metric.value !== undefined) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${metric.name}</td><td>${metric.value} ${metric.unit}</td>`;
+                    tableBody.appendChild(row);
+                }
+            });
+        }
+
+        async function reprocessActivity(activityId) {
+            const btn = document.getElementById('reprocess-btn');
+            const spinner = document.getElementById('spinner');
+            const resultEl = document.getElementById('reprocess-result');
+            
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+            resultEl.innerHTML = '';
+            resultEl.classList.remove('alert-success', 'alert-danger');
+            
+            try {
+                const response = await fetch(`/api/activities/${activityId}/reprocess`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+                
+                resultEl.innerHTML = `<div class="alert alert-success">Activity reprocessed successfully!</div>`;
+                
+                // Reload activity data to show updated metrics
+                await loadActivity(activityId);
+            } catch (error) {
+                console.error('Reprocess error:', error);
+                resultEl.innerHTML = `<div class="alert alert-danger">${error.message || 'Reprocessing failed'}</div>`;
+            } finally {
+                spinner.classList.add('d-none');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
