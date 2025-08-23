@@ -10,6 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 from .database import Activity, DaemonConfig, SyncLog, get_session
 from .garmin import GarminClient
 from .utils import logger
+from .activity_parser import get_activity_metrics
 
 
 class GarminSyncDaemon:
@@ -18,8 +19,17 @@ class GarminSyncDaemon:
         self.running = False
         self.web_server = None
 
-    def start(self, web_port=8888):
-        """Start daemon with scheduler and web UI"""
+    def start(self, web_port=8888, run_migrations=True):
+        """Start daemon with scheduler and web UI
+        :param web_port: Port for the web UI
+        :param run_migrations: Whether to run database migrations on startup
+        """
+        # Set migration flag for entrypoint
+        if run_migrations:
+            os.environ['RUN_MIGRATIONS'] = "1"
+        else:
+            os.environ['RUN_MIGRATIONS'] = "0"
+            
         try:
             # Load configuration from database
             config_data = self.load_config()
@@ -105,26 +115,38 @@ class GarminSyncDaemon:
 
             for activity in missing_activities:
                 try:
-                    # Use the correct method name
+                    # Download FIT file
                     fit_data = client.download_activity_fit(activity.activity_id)
-
-                    # Save the file
+                    
+                    # Save to file
                     import os
                     from pathlib import Path
-
                     data_dir = Path(os.getenv("DATA_DIR", "data"))
                     data_dir.mkdir(parents=True, exist_ok=True)
-
                     timestamp = activity.start_time.replace(":", "-").replace(" ", "_")
                     filename = f"activity_{activity.activity_id}_{timestamp}.fit"
                     filepath = data_dir / filename
-
+                    
                     with open(filepath, "wb") as f:
                         f.write(fit_data)
-
+                    
+                    # Update activity record
                     activity.filename = str(filepath)
                     activity.downloaded = True
                     activity.last_sync = datetime.now().isoformat()
+                    
+                    # Get metrics immediately after download
+                    metrics = get_activity_metrics(activity, client)
+                    if metrics:
+                        # Update metrics if available
+                        activity.activity_type = metrics.get("activityType", {}).get("typeKey")
+                        activity.duration = int(float(metrics.get("summaryDTO", {}).get("duration", 0)))
+                        activity.distance = float(metrics.get("summaryDTO", {}).get("distance", 0))
+                        activity.max_heart_rate = int(float(metrics.get("summaryDTO", {}).get("maxHR", 0)))
+                        activity.avg_power = float(metrics.get("summaryDTO", {}).get("avgPower", 0))
+                        activity.calories = int(float(metrics.get("summaryDTO", {}).get("calories", 0)))
+                    
+                    session.commit()
                     downloaded_count += 1
                     session.commit()
 
@@ -135,7 +157,8 @@ class GarminSyncDaemon:
                     session.rollback()
 
             self.log_operation(
-                "sync", "success", f"Downloaded {downloaded_count} new activities"
+                "sync", "success", 
+                f"Downloaded {downloaded_count} new activities and updated metrics"
             )
 
             # Update last run time

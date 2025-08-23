@@ -9,11 +9,10 @@ dev:
     just build
     docker run -it --rm --env-file .env -v $(pwd)/garminsync:/app/garminsync -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync-dev garminsync uvicorn garminsync.web.app:app --reload --host 0.0.0.0 --port 8080
 
-# Run database migrations (container-based)
+# Run database migrations with enhanced logging (container-based)
 migrate:
     just build
-    docker run --rm --env-file .env -v $(pwd)/data:/app/data --entrypoint "alembic" garminsync upgrade head
-
+    docker run --rm --env-file .env -v $(pwd)/data:/app/data --entrypoint "python" garminsync -m garminsync.cli migrate
 # Run validation tests (container-based)
 test:
     just build
@@ -41,7 +40,7 @@ format:
 # Start production server
 run_server:
     just build
-    docker run -d --rm --env-file .env -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync garminsync daemon --start
+    docker run -d --rm --env-file .env -e RUN_MIGRATIONS=1 -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync garminsync daemon --start
 
 # Stop production server
 stop_server:
@@ -50,7 +49,7 @@ stop_server:
 # Run server in live mode for debugging
 run_server_live:
     just build
-    docker run -it --rm --env-file .env -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync garminsync daemon --start
+    docker run -it --rm --env-file .env -e RUN_MIGRATIONS=1 -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync garminsync daemon --start
 
 # Clean up any existing container
 cleanup:

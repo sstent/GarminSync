@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration script to populate new activity fields from Garmin API
+Migration script to populate new activity fields from FIT files or Garmin API
 """
 
 import os
@@ -16,11 +16,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from garminsync.database import Activity, get_session, init_db
 from garminsync.garmin import GarminClient
+from garminsync.activity_parser import get_activity_metrics
 
 
 def add_columns_to_database():
     """Add new columns to the activities table if they don't exist"""
-    print("Adding new columns to database...")
+
+# Add the parent directory to the path to import garminsync modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from garminsync.database import Activity, get_session, init_db
+from garminsync.garmin import GarminClient
+
+
+def add_columns_to_database():
+    """Add new columns to the activities table if they don't exist"""
+    print("Adding new columns to database...", flush=True)
 
     # Get database engine
     db_path = os.path.join(os.getenv("DATA_DIR", "data"), "garmin.db")
@@ -49,7 +60,7 @@ def add_columns_to_database():
         with engine.connect() as conn:
             for column_name in new_columns:
                 if column_name not in existing_columns:
-                    print(f"Adding column {column_name}...")
+                    print(f"Adding column {column_name}...", flush=True)
                     if column_name in ["distance", "avg_power"]:
                         conn.execute(
                             text(
@@ -69,21 +80,22 @@ def add_columns_to_database():
                             )
                         )
                     conn.commit()
-                    print(f"Column {column_name} added successfully")
+                    print(f"Column {column_name} added successfully", flush=True)
                 else:
-                    print(f"Column {column_name} already exists")
+                    print(f"Column {column_name} already exists", flush=True)
 
-        print("Database schema updated successfully")
+        print("Database schema updated successfully", flush=True)
         return True
 
     except Exception as e:
-        print(f"Failed to update database schema: {e}")
+        print(f"Failed to update database schema: {e}", flush=True)
         return False
 
 
+
 def migrate_activities():
-    """Migrate activities to populate new fields from Garmin API"""
-    print("Starting activity migration...")
+    """Migrate activities to populate new fields from FIT files or Garmin API"""
+    print("Starting activity migration...", flush=True)
 
     # First, add columns to database
     if not add_columns_to_database():
@@ -92,9 +104,9 @@ def migrate_activities():
     # Initialize Garmin client
     try:
         client = GarminClient()
-        print("Garmin client initialized successfully")
+        print("Garmin client initialized successfully", flush=True)
     except Exception as e:
-        print(f"Failed to initialize Garmin client: {e}")
+        print(f"Failed to initialize Garmin client: {e}", flush=True)
         # Continue with migration but without Garmin data
         client = None
 
@@ -106,12 +118,12 @@ def migrate_activities():
         activities = (
             session.query(Activity).filter(Activity.activity_type.is_(None)).all()
         )
-        print(f"Found {len(activities)} activities to migrate")
+        print(f"Found {len(activities)} activities to migrate", flush=True)
 
         # If no activities found, try to get all activities (in case activity_type column was just added)
         if len(activities) == 0:
             activities = session.query(Activity).all()
-            print(f"Found {len(activities)} total activities")
+            print(f"Found {len(activities)} total activities", flush=True)
 
         updated_count = 0
         error_count = 0
@@ -119,13 +131,16 @@ def migrate_activities():
         for i, activity in enumerate(activities):
             try:
                 print(
-                    f"Processing activity {i+1}/{len(activities)} (ID: {activity.activity_id})"
+                    f"Processing activity {i+1}/{len(activities)} (ID: {activity.activity_id})", 
+                    flush=True
                 )
 
-                # Fetch detailed activity data from Garmin (if client is available)
-                activity_details = None
-                if client:
-                    activity_details = client.get_activity_details(activity.activity_id)
+                # Use shared parser to get activity metrics
+                activity_details = get_activity_metrics(activity, client)
+                if activity_details is not None:
+                    print(f"  Successfully parsed metrics for activity {activity.activity_id}", flush=True)
+                else:
+                    print(f"  Could not retrieve metrics for activity {activity.activity_id}", flush=True)
 
                 # Update activity fields if we have details
                 if activity_details:
@@ -170,19 +185,19 @@ def migrate_activities():
 
                 # Print progress every 10 activities
                 if (i + 1) % 10 == 0:
-                    print(f"  Progress: {i+1}/{len(activities)} activities processed")
+                    print(f"  Progress: {i+1}/{len(activities)} activities processed", flush=True)
 
             except Exception as e:
-                print(f"  Error processing activity {activity.activity_id}: {e}")
+                print(f"  Error processing activity {activity.activity_id}: {e}", flush=True)
                 session.rollback()
                 error_count += 1
                 continue
 
-        print(f"Migration completed. Updated: {updated_count}, Errors: {error_count}")
+        print(f"Migration completed. Updated: {updated_count}, Errors: {error_count}", flush=True)
         return True  # Allow partial success
 
     except Exception as e:
-        print(f"Migration failed: {e}")
+        print(f"Migration failed: {e}", flush=True)
         return False
     finally:
         session.close()

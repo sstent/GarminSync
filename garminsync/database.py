@@ -120,6 +120,8 @@ def get_session():
     return Session()
 
 
+from garminsync.activity_parser import get_activity_metrics
+
 def sync_database(garmin_client):
     """Sync local database with Garmin Connect activities.
 
@@ -134,36 +136,70 @@ def sync_database(garmin_client):
             print("No activities returned from Garmin API")
             return
 
-        for activity in activities:
-            # Check if activity is a dictionary and has required fields
-            if not isinstance(activity, dict):
-                print(f"Invalid activity data: {activity}")
+        for activity_data in activities:
+            if not isinstance(activity_data, dict):
+                print(f"Invalid activity data: {activity_data}")
                 continue
 
-            # Safely access dictionary keys
-            activity_id = activity.get("activityId")
-            start_time = activity.get("startTimeLocal")
-            avg_heart_rate = activity.get("averageHR", None)
-            calories = activity.get("calories", None)
-
+            activity_id = activity_data.get("activityId")
+            start_time = activity_data.get("startTimeLocal")
+            
             if not activity_id or not start_time:
-                print(f"Missing required fields in activity: {activity}")
+                print(f"Missing required fields in activity: {activity_data}")
                 continue
 
-            existing = (
-                session.query(Activity).filter_by(activity_id=activity_id).first()
-            )
+            existing = session.query(Activity).filter_by(activity_id=activity_id).first()
+            
+            # Create or update basic activity info
             if not existing:
-                new_activity = Activity(
+                activity = Activity(
                     activity_id=activity_id,
                     start_time=start_time,
-                    avg_heart_rate=avg_heart_rate,
-                    calories=calories,
                     downloaded=False,
                     created_at=datetime.now().isoformat(),
                     last_sync=datetime.now().isoformat(),
                 )
-                session.add(new_activity)
+                session.add(activity)
+                session.flush()  # Assign ID
+            else:
+                activity = existing
+            
+            # Update metrics using shared parser
+            metrics = get_activity_metrics(activity, garmin_client)
+            if metrics:
+                activity.activity_type = metrics.get("activityType", {}).get("typeKey")
+                
+                # Extract duration in seconds
+                duration = metrics.get("summaryDTO", {}).get("duration")
+                if duration is not None:
+                    activity.duration = int(float(duration))
+                
+                # Extract distance in meters
+                distance = metrics.get("summaryDTO", {}).get("distance")
+                if distance is not None:
+                    activity.distance = float(distance)
+                
+                # Extract heart rates
+                max_hr = metrics.get("summaryDTO", {}).get("maxHR")
+                if max_hr is not None:
+                    activity.max_heart_rate = int(float(max_hr))
+                
+                avg_hr = metrics.get("summaryDTO", {}).get("avgHR", None) or \
+                         metrics.get("summaryDTO", {}).get("averageHR", None)
+                if avg_hr is not None:
+                    activity.avg_heart_rate = int(float(avg_hr))
+                
+                # Extract power and calories
+                avg_power = metrics.get("summaryDTO", {}).get("avgPower")
+                if avg_power is not None:
+                    activity.avg_power = float(avg_power)
+                
+                calories = metrics.get("summaryDTO", {}).get("calories")
+                if calories is not None:
+                    activity.calories = int(float(calories))
+            
+            # Update sync timestamp
+            activity.last_sync = datetime.now().isoformat()
 
         session.commit()
     except SQLAlchemyError as e:

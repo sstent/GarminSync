@@ -19,6 +19,7 @@ RUN pip install --upgrade pip && \
 # Copy application code
 COPY garminsync/ ./garminsync/
 COPY migrations/ ./migrations/
+COPY migrations/alembic.ini ./alembic.ini
 COPY tests/ ./tests/
 COPY entrypoint.sh .
 COPY patches/ ./patches/

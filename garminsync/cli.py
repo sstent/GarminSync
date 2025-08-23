@@ -173,13 +173,20 @@ def daemon_mode(
         bool, typer.Option("--status", help="Show daemon status")
     ] = False,
     port: Annotated[int, typer.Option("--port", help="Web UI port")] = 8080,
+    run_migrations: Annotated[
+        bool, 
+        typer.Option(
+            "--run-migrations/--skip-migrations", 
+            help="Run database migrations on startup (default: run)"
+        )
+    ] = True,
 ):
     """Daemon mode operations"""
     from .daemon import GarminSyncDaemon
 
     if start:
         daemon = GarminSyncDaemon()
-        daemon.start(web_port=port)
+        daemon.start(web_port=port, run_migrations=run_migrations)
     elif stop:
         # Implementation for stopping daemon (PID file or signal)
         typer.echo("Stopping daemon...")
