@@ -39,8 +39,8 @@ format:
 
 # Start production server
 run_server:
-    just build
-    docker run -d --rm --env-file .env -e RUN_MIGRATIONS=1 -v $(pwd)/data:/app/data -p 8888:8888 --name garminsync garminsync daemon --start
+    cd ~/GarminSync/docker
+    docker compose up --build
 
 # Stop production server
 stop_server:
